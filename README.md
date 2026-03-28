@@ -1,73 +1,187 @@
-# React + TypeScript + Vite
+# TaskGenie
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+AI system that turns assignment prompts into executable timelines with smart scheduling and calendar sync.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🚀 Overview
 
-## React Compiler
+TaskGenie is a web-based productivity system that helps students manage assignments more effectively.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Users can upload assignment prompts, and the system will:
 
-## Expanding the ESLint configuration
+* Generate a structured execution roadmap using AI
+* Break down tasks into actionable steps
+* Optimize timelines across multiple assignments
+* Sync schedules to Google Calendar
+* Send reminders before deadlines
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+The goal is simple: **reduce overwhelm and improve execution.**
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🧠 Key Features
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 📄 Assignment → Plan
+
+* Upload assignment briefs (text/PDF)
+* AI extracts deliverables, milestones, and requirements
+* Generates a structured execution roadmap
+
+### 🗓 Smart Scheduling
+
+* Converts tasks into time blocks
+* Distributes workload across available time
+* Syncs directly with Google Calendar
+
+### ⚖️ Multi-Assignment Optimization
+
+* Handles multiple assignments simultaneously
+* Minimizes context switching
+* Detects overload and scheduling conflicts
+
+### 🔁 Replanning
+
+* Automatically adjusts schedules when:
+
+  * new assignments are added
+  * deadlines change
+  * plans are modified
+
+### 📬 Reminders
+
+* Sends email notifications before deadlines
+* Keeps users on track without manual tracking
+
+---
+
+## 🏗 Architecture
+
+The system is split into 4 main components:
+
+### 1. Frontend (UI)
+
+* React + Tailwind + shadcn/ui
+* Handles user interaction, visualization, and approval flow
+
+### 2. Planner Engine
+
+* LangGraph-based workflow
+* Responsible for:
+
+  * parsing assignment briefs
+  * generating task breakdowns
+  * sequencing and optimization logic
+
+### 3. Workflow Engine
+
+* Inngest
+* Handles:
+
+  * background processing
+  * async plan generation
+  * retries and scheduling
+  * calendar sync jobs
+
+### 4. Platform Layer
+
+* Firebase (Auth + NoSQL storage)
+* Google Calendar API
+* Manages:
+
+  * user data
+  * plans
+  * calendar integration
+
+---
+
+## 🧩 Tech Stack
+
+* **Frontend:** React, Tailwind CSS, shadcn/ui
+* **AI Orchestration:** LangGraph
+* **Workflow Automation:** Inngest
+* **Backend / Storage:** Firebase (Auth + Firestore)
+* **Integrations:** Google Calendar API
+
+---
+
+## ⚙️ Setup (Local Development)
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/your-username/task-genie.git
+cd task-genie
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2. Install dependencies (frontend)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd frontend
+npm install
+npm run dev
 ```
+
+### 3. Environment variables
+
+Create a `.env` file in relevant services:
+
+* Firebase config
+* OpenAI / LLM API key
+* Google Calendar credentials
+* Inngest keys
+
+---
+
+## 📂 Project Structure
+
+```txt
+task-genie/
+ ├── frontend/        # React app
+ ├── planner/         # LangGraph logic
+ ├── workflows/       # Inngest functions
+ ├── platform/        # Firebase + integrations
+ ├── README.md
+```
+
+---
+
+## 🎯 Roadmap
+
+* [ ] Assignment upload (text + PDF parsing)
+* [ ] AI roadmap generation
+* [ ] Calendar integration
+* [ ] Multi-assignment optimization
+* [ ] Email reminder system
+* [ ] UI/UX polish
+
+---
+
+## 💡 Vision
+
+Most students don’t struggle with understanding assignments.
+They struggle with **execution and time management**.
+
+TaskGenie bridges that gap by turning static assignment briefs into:
+
+* structured plans
+* executable timelines
+* automated schedules
+
+---
+
+## 📌 Status
+
+🚧 In active development (April build sprint)
+
+---
+
+## 🤝 Contribution
+
+This is currently a solo project, but suggestions and ideas are welcome.
+
+---
+
+## 📄 License
+
+MIT License
