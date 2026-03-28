@@ -110,7 +110,7 @@ The system is split into 4 main components:
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/your-username/task-genie.git
+git clone https://github.com/WanAdamm/task-genie.git
 cd task-genie
 ```
 
