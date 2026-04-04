@@ -1,7 +1,8 @@
+import { Link } from "react-router-dom";
+
 export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-[#faf8ff] dark:bg-slate-950">
-      
       {/* Left Section */}
       <div className="flex items-center gap-8">
         <span className="text-2xl font-black text-[#113069] dark:text-blue-200 font-['Manrope'] tracking-tight">
@@ -9,9 +10,12 @@ export default function Navbar() {
         </span>
 
         <div className="hidden md:flex gap-6">
-          <a className="text-[#113069] dark:text-slate-400 font-medium hover:text-[#0053db] transition-colors text-sm">
+          <Link
+            to="/dashboard"
+            className="text-[#113069] dark:text-slate-400 font-medium hover:text-[#0053db] transition-colors text-sm"
+          >
             Dashboard
-          </a>
+          </Link>
           <a className="text-[#113069] dark:text-slate-400 font-medium hover:text-[#0053db] transition-colors text-sm">
             Calendar
           </a>
@@ -23,9 +27,8 @@ export default function Navbar() {
 
       {/* Right Section */}
       <div className="flex items-center gap-4">
-        
         {/* Search */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg">
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border-2">
           <span className="material-symbols-outlined text-sm text-outline">
             search
           </span>
@@ -45,11 +48,11 @@ export default function Navbar() {
             settings
           </button>
 
-          <button className="bg-primary hover:bg-primary-dim text-on-primary px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 duration-150 ease-in-out">
+          <button className="bg-[#0053db] hover:bg-[#0041b3] text-white px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 duration-150 ease-in-out color-red">
             New Assignment
           </button>
         </div>
       </div>
     </nav>
-  )
+  );
 }

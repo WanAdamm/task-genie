@@ -1,22 +1,22 @@
 export default function LandingPage() {
   return (
-    <main className="pt-24">
+    <main className="bg-[#faf8ff] pt-10">
 
       {/* HERO */}
-      <section className="max-w-7xl mx-auto px-6 py-20 lg:py-32 grid lg:grid-cols-2 gap-12 items-center">
+      <section className="max-w-7xl mx-auto px-6 py-10 lg:py-22 grid lg:grid-cols-2 gap-12 items-center">
         <div className="space-y-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-surface-container-high rounded-full border border-outline-variant/15">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e2e7ff] rounded-full border border-outline-variant/15">
             <span className="material-symbols-outlined text-sm text-primary">
               auto_awesome
             </span>
-            <span className="text-xs font-bold tracking-wider">
+            <span className="text-xs text-[#0050d4] font-bold tracking-wider">
               AI-DRIVEN ACADEMIC EXCELLENCE
             </span>
           </div>
 
-          <h1 className="text-5xl lg:text-7xl font-black leading-tight">
+          <h1 className="text-5xl lg:text-7xl text-[#113069] font-black leading-tight">
             Master Your{" "}
-            <span className="bg-gradient-to-br from-primary to-primary-dim bg-clip-text text-transparent">
+            <span className="text-[#0051d7] bg-gradient-to-br from-primary to-primary-dim bg-clip-text">
               Deadlines
             </span>{" "}
             with AI
