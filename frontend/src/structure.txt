@@ -1,0 +1,33 @@
+Folder PATH listing for volume OS
+Volume serial number is 7CFD-91A2
+C:.
+|   App.css
+|   App.tsx
+|   AppLayout.tsx
+|   index.css
+|   main.tsx
+|   router.tsx
+|   structure.txt
+|   
++---assets
++---components
+|   +---layout
+|   |       Footer.tsx
+|   |       Navbar.tsx
+|   |       Sidebar.tsx
+|   |       
+|   \---ui
+|           button.tsx
+|           
++---lib
+|       utils.ts
+|       
+\---pages
+        Assignment.tsx
+        Calendar.tsx
+        Error.tsx
+        Homepage.tsx
+        Insights.tsx
+        Overview.tsx
+        Setting.tsx
+        

@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
 
 type NavItem = {
   label: string;
@@ -24,14 +24,16 @@ export default function Sidebar() {
     <aside className="h-screen w-64 fixed left-0 top-0 bg-[#eaedff] border-r border-[#98b1f2]/15 flex-col py-8 px-4 z-40 hidden md:flex">
       <div className="mb-10 px-2">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
-            <span
-              className="material-symbols-outlined"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              auto_awesome
-            </span>
-          </div>
+          <Link to="/">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20 cursor-pointer hover:scale-105 transition">
+              <span
+                className="material-symbols-outlined"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                auto_awesome
+              </span>
+            </div>
+          </Link>
 
           <div>
             <h1 className="font-headline font-extrabold text-[#113069] text-xl tracking-tight leading-none">
@@ -76,7 +78,6 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto space-y-1 pt-6 border-t border-primary/10">
-
         {bottomItems.map((item) => (
           <NavLink
             key={item.label}

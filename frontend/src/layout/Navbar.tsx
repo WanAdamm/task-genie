@@ -16,9 +16,12 @@ export default function Navbar() {
           >
             Dashboard
           </Link>
-          <a className="text-[#113069] dark:text-slate-400 font-medium hover:text-[#0053db] transition-colors text-sm">
+          <Link
+            to={"/dashboard/calendar"}
+            className="text-[#113069] dark:text-slate-400 font-medium hover:text-[#0053db] transition-colors text-sm"
+          >
             Calendar
-          </a>
+          </Link>
           <a className="text-[#113069] dark:text-slate-400 font-medium hover:text-[#0053db] transition-colors text-sm">
             Roadmap
           </a>
