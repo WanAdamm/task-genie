@@ -76,14 +76,6 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto space-y-1 pt-6 border-t border-primary/10">
-        <div className="p-4 bg-primary/10 rounded-xl mb-4">
-          <p className="text-xs font-bold text-[#0048bf] mb-2">
-            Cognitive Premium
-          </p>
-          <button className="w-full py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-[#0041b3] transition-all shadow-md shadow-primary/10">
-            Upgrade to Pro
-          </button>
-        </div>
 
         {bottomItems.map((item) => (
           <NavLink
