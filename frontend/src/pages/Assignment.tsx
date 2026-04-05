@@ -2,16 +2,6 @@ export default function Assignment() {
   return (
     <main className="min-h-screen md:ml-64">
       <div className="mx-auto max-w-6xl px-6 pb-10 pt-24 md:px-8">
-        <nav className="mb-6 flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-on-surface/50">
-          <a href="#" className="hover:text-primary">
-            Dashboard
-          </a>
-          <span className="material-symbols-outlined text-[10px]">
-            chevron_right
-          </span>
-          <span className="text-on-surface">Upload</span>
-        </nav>
-
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="space-y-8 lg:col-span-7">
             <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">

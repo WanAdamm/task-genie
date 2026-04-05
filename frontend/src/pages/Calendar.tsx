@@ -3,16 +3,6 @@ export default function Calendar() {
     <main className="min-h-screen max-w-6xl mx-auto px-6 py-10 md:px-8">
       <header className="mb-6 flex flex-col justify-between gap-6 md:flex-row md:items-end">
         <div>
-          <nav className="mb-2 flex items-center gap-2 text-on-surface-variant">
-            <span>TaskGenie</span>
-            <span className="material-symbols-outlined text-xs">
-              chevron_right
-            </span>
-            <span className="font-semibold text-primary">
-              Academic Calendar
-            </span>
-          </nav>
-
           <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">
             Focus Timeline
           </h2>

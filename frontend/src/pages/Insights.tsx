@@ -4,9 +4,6 @@ export default function Insights() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <p className="text-xs text-muted-foreground">
-            Assignments &gt; AI Roadmap
-          </p>
           <h1 className="text-3xl font-bold">Academic Curator Roadmap</h1>
         </div>
 
