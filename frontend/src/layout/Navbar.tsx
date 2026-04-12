@@ -47,13 +47,17 @@ export default function Navbar() {
             notifications
           </button>
 
-          <button className="material-symbols-outlined p-2 text-on-surface-variant hover:bg-[#f2f3ff] rounded-lg transition-all">
-            settings
-          </button>
+          <Link to={"/dashboard/settings"}>
+            <button className="material-symbols-outlined p-2 text-on-surface-variant hover:bg-[#f2f3ff] rounded-lg transition-all">
+              settings
+            </button>
+          </Link>
 
-          <button className="bg-[#0053db] hover:bg-[#0041b3] text-white px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 duration-150 ease-in-out color-red">
-            New Assignment
-          </button>
+          <Link to={"/dashboard/assignments"}>
+            <button className="bg-[#0053db] hover:bg-[#0041b3] text-white px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 duration-150 ease-in-out color-red">
+              New Assignment
+            </button>
+          </Link>
         </div>
       </div>
     </nav>

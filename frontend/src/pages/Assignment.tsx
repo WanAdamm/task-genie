@@ -1,6 +1,6 @@
 export default function Assignment() {
   return (
-    <main className="min-h-screen md:ml-64">
+    <main className="min-h-screen">
       <div className="mx-auto max-w-6xl px-6 pb-10 pt-24 md:px-8">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="space-y-8 lg:col-span-7">

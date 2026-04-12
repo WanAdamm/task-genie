@@ -1,4 +1,28 @@
+import { useEffect } from "react";
+
 export default function LandingPage() {
+  useEffect(() => {
+    const elements = document.querySelectorAll(".reveal-up");
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add(
+              "animate-[fadeUp_0.6s_ease-out_forwards]",
+            );
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 },
+    );
+
+    elements.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <main className="bg-[#faf8ff] pt-10">
       {/* HERO */}
@@ -58,7 +82,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
+            <div className="reveal-up opacity-0 translate-y-6 bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
               <span className="material-symbols-outlined text-3xl text-primary">
                 schema
               </span>
@@ -68,7 +92,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
+            <div className="reveal-up opacity-0 translate-y-6 bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
               <span className="material-symbols-outlined text-3xl text-primary">
                 calendar_clock
               </span>
@@ -78,7 +102,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
+            <div className="reveal-up opacity-0 translate-y-6 bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
               <span className="material-symbols-outlined text-3xl text-primary">
                 sync_alt
               </span>
@@ -98,19 +122,19 @@ export default function LandingPage() {
         </h2>
 
         <div className="grid md:grid-cols-3 gap-6 text-center">
-          <div className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
+          <div className="reveal-up opacity-0 translate-y-6 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
             <div className="text-3xl font-black">01</div>
             <h3 className="font-bold mt-4">Upload prompt</h3>
             <p className="text-sm mt-2">Paste assignment or upload PDF.</p>
           </div>
 
-          <div className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
+          <div className="reveal-up opacity-0 translate-y-6 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
             <div className="text-3xl font-black">02</div>
             <h3 className="font-bold mt-4">Generate roadmap</h3>
             <p className="text-sm mt-2">AI creates step-by-step plan.</p>
           </div>
 
-          <div className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
+          <div className="reveal-up opacity-0 translate-y-6 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
             <div className="text-3xl font-black">03</div>
             <h3 className="font-bold mt-4">Sync to calendar</h3>
             <p className="text-sm mt-2">Push tasks into your schedule.</p>
@@ -121,7 +145,9 @@ export default function LandingPage() {
       {/* CTA */}
       <section className="max-w-6xl mx-auto px-6 pb-10 md:px-8">
         <div className="bg-black text-white rounded-2xl p-6 md:p-8 text-center space-y-6 border border-outline-variant/10">
-          <h2 className="text-4xl font-black">Join the Cognitive Elite</h2>
+          <h2 className="text-4xl font-black text-white ">
+            Join the Cognitive Elite
+          </h2>
           <p className="max-w-xl mx-auto">
             Start your AI-powered semester today.
           </p>

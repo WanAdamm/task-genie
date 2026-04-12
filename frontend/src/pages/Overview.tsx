@@ -15,7 +15,7 @@ export default function Overview() {
         {/* Overview Bento Grid */}
         <div className="col-span-12 md:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Deadline Card */}
-          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md">
             <div className="flex flex-col gap-4">
               <div className="w-10 h-10 rounded-xl bg-error-container/20 flex items-center justify-center">
                 <span className="material-symbols-outlined text-error">
@@ -34,7 +34,7 @@ export default function Overview() {
           </div>
 
           {/* Tasks Card */}
-          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md">
             <div className="flex flex-col gap-4">
               <div className="w-10 h-10 rounded-xl bg-primary-container/20 flex items-center justify-center">
                 <span className="material-symbols-outlined text-primary">
@@ -53,7 +53,7 @@ export default function Overview() {
           </div>
 
           {/* Focus Card */}
-          <div className="bg-primary text-white p-6 md:p-8 rounded-xl relative overflow-hidden border border-outline-variant/10 shadow-sm">
+          <div className="bg-primary text-white p-6 md:p-8 rounded-xl relative overflow-hidden border border-outline-variant/10 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md">
             <div className="relative z-10 flex flex-col h-full justify-between">
               <p className="text-[10px] uppercase text-white/70 tracking-wider">
                 Next Focus Session

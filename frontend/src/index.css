@@ -438,3 +438,45 @@
     padding: 2rem 1.5rem 1.5rem 2rem;
   }
 }
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slider-stepper::-webkit-slider-runnable-track {
+  height: 0;
+  background: transparent;
+}
+
+.slider-stepper::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: var(--primary);
+  border: none;
+  margin-top: -0.5rem;
+  cursor: pointer;
+}
+
+.slider-stepper::-moz-range-track {
+  height: 0;
+  background: transparent;
+}
+
+.slider-stepper::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: var(--primary);
+  border: none;
+  cursor: pointer;
+}

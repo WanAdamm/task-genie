@@ -1,4 +1,9 @@
+import Stepper from "@/components/ui/stepper";
+import { useState } from "react";
+
 export default function Settings() {
+  const [level, setLevel] = useState(3)
+
   return (
     <main className="min-h-screen overflow-y-auto bg-surface max-w-6xl mx-auto px-6 py-10 md:px-8">
       <header className="mb-6 max-w-4xl">
@@ -168,27 +173,6 @@ export default function Settings() {
                 Manage Sync
               </button>
             </div>
-
-            <div className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-surface-container-low">
-                  <span className="material-symbols-outlined text-on-surface-variant">
-                    calendar_month
-                  </span>
-                </div>
-
-                <div className="flex flex-col">
-                  <p className="text-sm font-bold">iCloud Calendar</p>
-                  <p className="text-xs font-medium text-on-surface-variant">
-                    Not Connected
-                  </p>
-                </div>
-              </div>
-
-              <button className="w-full rounded-xl border border-outline-variant/20 px-6 py-3 text-xs font-bold text-on-surface transition-all hover:bg-surface-container">
-                Connect Now
-              </button>
-            </div>
           </div>
         </section>
 
@@ -245,10 +229,7 @@ export default function Settings() {
                     habits vs. experimenting with new peak performance times.
                   </p>
 
-                  <input
-                    type="range"
-                    className="h-2 w-full appearance-none rounded-full bg-surface-container-highest accent-primary"
-                  />
+                  <Stepper value={level} onChange={setLevel} />
 
                   <div className="mt-2 flex justify-between">
                     <span className="text-[10px] font-bold uppercase text-on-surface-variant">
