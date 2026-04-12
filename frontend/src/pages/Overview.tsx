@@ -1,4 +1,26 @@
+import { useState } from "react";
+
+type Task = {
+  text: string;
+  done?: boolean;
+};
+
 export default function Overview() {
+  const [tasks, setTasks] = useState<Task[]>([
+    { text: "Review Literature Review Structure", done: true },
+    { text: "Annotate 4 peer-reviewed sources" },
+    { text: "Draft introduction for Ethics paper" },
+    { text: "Email Professor regarding Lab 4" },
+  ]);
+
+  const toggleTask = (index: number) => {
+    setTasks((prev) =>
+      prev.map((task, i) =>
+        i === index ? { ...task, done: !task.done } : task,
+      ),
+    );
+  };
+
   return (
     <main className="pt-24 px-6 pb-10 md:px-8">
       <header className="mb-6 max-w-6xl mx-auto">
@@ -121,17 +143,20 @@ export default function Overview() {
           </div>
 
           <div className="space-y-3">
-            {[
-              { text: "Review Literature Review Structure", done: true },
-              { text: "Annotate 4 peer-reviewed sources" },
-              { text: "Draft introduction for Ethics paper" },
-              { text: "Email Professor regarding Lab 4" },
-            ].map((task, i) => (
-              <label
+            {tasks.map((task, i) => (
+              <div
                 key={i}
+                onClick={() => toggleTask(i)}
                 className="flex items-center gap-4 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10 hover:border-primary/20 transition-all cursor-pointer group"
               >
-                <div className="w-6 h-6 rounded-xl border-2 border-outline-variant/10 flex items-center justify-center">
+                <div
+                  className={`w-6 h-6 rounded-xl border-2 flex items-center justify-center transition-all
+                ${
+                  task.done
+                    ? "border-primary bg-primary/10"
+                    : "border-outline-variant/10"
+                }`}
+                >
                   {task.done && (
                     <span className="material-symbols-outlined text-primary text-lg">
                       check
@@ -140,13 +165,13 @@ export default function Overview() {
                 </div>
 
                 <span
-                  className={`text-sm ${
+                  className={`text-sm transition-all ${
                     task.done ? "line-through opacity-50" : ""
                   }`}
                 >
                   {task.text}
                 </span>
-              </label>
+              </div>
             ))}
           </div>
         </div>
