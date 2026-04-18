@@ -26,3 +26,4 @@ dist-ssr
 backend/venv
 backend/serviceAccountKey.json
 backend/.env
+backend/venv/Lib/site-packages
