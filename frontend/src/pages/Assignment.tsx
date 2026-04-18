@@ -1,4 +1,13 @@
+import Stepper from "@/components/ui/stepper";
+import { useState } from "react";
+
+const priorities = ["LOW", "MED", "HIGH"] as const;
+type Priority = (typeof priorities)[number];
+
 export default function Assignment() {
+  const [priority, setPriority] = useState<Priority>("MED");
+  const [level, setLevel] = useState(3)
+
   return (
     <main className="min-h-screen">
       <div className="mx-auto max-w-6xl px-6 pb-10 pt-24 md:px-8">
@@ -128,30 +137,33 @@ export default function Assignment() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface/40">
-                          Priority Level
-                        </label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="mb-2 w-max block text-[10px] font-bold uppercase tracking-widest text-on-surface/40">
+                            Priority Level
+                          </label>
 
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            className="flex-1 rounded-xl bg-surface-container-low px-4 py-3 text-[10px] font-bold text-on-surface/50 transition-all hover:bg-primary/10 hover:text-primary"
-                          >
-                            LOW
-                          </button>
-                          <button
-                            type="button"
-                            className="flex-1 rounded-xl bg-primary/10 px-4 py-3 text-[10px] font-bold text-primary ring-1 ring-primary/20"
-                          >
-                            MED
-                          </button>
-                          <button
-                            type="button"
-                            className="flex-1 rounded-xl bg-surface-container-low px-4 py-3 text-[10px] font-bold text-on-surface/50 transition-all hover:bg-primary/10 hover:text-primary"
-                          >
-                            HIGH
-                          </button>
+                          <div className="flex gap-2">
+                            {priorities.map((level) => {
+                              const isActive = priority === level;
+
+                              return (
+                                <button
+                                  key={level}
+                                  type="button"
+                                  onClick={() => setPriority(level)}
+                                  className={`flex-1 rounded-xl px-4 py-3 text-[10px] font-bold transition-all
+                                  ${
+                                    isActive
+                                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                                      : "bg-surface-container-low text-on-surface/50 hover:bg-primary/10 hover:text-primary"
+                                  }`}
+                                >
+                                  {level}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
 
@@ -161,9 +173,7 @@ export default function Assignment() {
                         </label>
 
                         <div className="flex items-center gap-2 pt-1.5">
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container-high">
-                            <div className="h-full w-2/3 bg-primary" />
-                          </div>
+                          <Stepper value={level} onChange={setLevel} max={3}/>
                           <span className="whitespace-nowrap text-xs font-bold text-on-surface">
                             Hard
                           </span>
@@ -175,7 +185,7 @@ export default function Assignment() {
                   <div className="pt-6">
                     <button
                       type="submit"
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-dim px-6 py-3 font-headline text-sm font-extrabold tracking-wide text-on-primary shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-dim px-6 py-3 font-headline text-sm font-extrabold tracking-wide text-on-primary text-white shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
                     >
                       <span
                         className="material-symbols-outlined text-lg"

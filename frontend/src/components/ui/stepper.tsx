@@ -18,7 +18,7 @@ export default function SliderStepper({
   const progress = ((value - min) / (max - min)) * 100;
 
   return (
-    <div className="relative w-full py-4">
+    <div className="relative w-full">
       <div className="relative h-8">
         <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-surface-container-highest" />
 

@@ -3,7 +3,7 @@ import AppLayout from "./AppLayout";
 import LandingPage from "./pages/Homepage";
 import Assignment from "./pages/Assignment";
 import Overview from "./pages/Overview";
-import Calendar from "./pages/Calendar";
+import Calendar from "./pages/Calendar/Calendar";
 import Error from "./pages/Error";
 import Insights from "./pages/Insights";
 import Settings from "./pages/Setting";
