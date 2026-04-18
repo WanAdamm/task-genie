@@ -19,7 +19,15 @@ def get_firestore_client():
 
     return firestore.client()
 
-
-def get_events_collection():
+# helper function to retrieve collection
+def get_from_collection(collection):
     db = get_firestore_client()
-    return db.collection("events")
+    return db.collection(collection)
+
+# get events from firestore
+def get_events_collection():
+    return get_from_collection("events")
+
+# get appConfig from firestore
+def get_appConfig_collection():
+    return get_from_collection("appConfig")
