@@ -24,6 +24,11 @@ def get_from_collection(collection):
     db = get_firestore_client()
     return db.collection(collection)
 
+# helper function to retrieve documents
+def get_from_document(document):
+    db = get_firestore_client()
+    return db.document(document)
+
 # get events from firestore
 def get_events_collection():
     return get_from_collection("events")
@@ -31,3 +36,7 @@ def get_events_collection():
 # get appConfig from firestore
 def get_appConfig_collection():
     return get_from_collection("appConfig")
+
+# get settings from firestore
+def getSettings():
+    return get_from_document("appConfig/settings")

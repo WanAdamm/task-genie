@@ -1,8 +1,14 @@
 import Stepper from "@/components/ui/stepper";
 import { useState } from "react";
 
+type Strategy = "frog" | "balanced" | "night";
+
 export default function Settings() {
-  const [level, setLevel] = useState(3)
+  const [level, setLevel] = useState(3);
+  const [primaryAlert, setPrimaryAlert] = useState(14);
+  const [secondaryAlert, setSecondaryAlert] = useState(14);
+
+  const [strategy, setStrategy] = useState<Strategy>("balanced");
 
   return (
     <main className="min-h-screen overflow-y-auto bg-surface max-w-6xl mx-auto px-6 py-10 md:px-8">
@@ -95,16 +101,15 @@ export default function Settings() {
                     Primary Alert
                   </label>
                   <span className="rounded-full bg-primary-container px-3 py-1 text-xs font-medium text-primary">
-                    2 Days Before
+                    {primaryAlert} Days Before
                   </span>
                 </div>
 
-                <input
-                  type="range"
-                  min="1"
-                  max="14"
-                  defaultValue="2"
-                  className="h-2 w-full cursor-pointer appearance-none rounded-xl bg-surface-container-high accent-primary"
+                <Stepper
+                  value={primaryAlert}
+                  onChange={setPrimaryAlert}
+                  min={1}
+                  max={14}
                 />
 
                 <div className="flex justify-between text-[10px] font-bold uppercase tracking-tighter text-on-surface-variant">
@@ -120,20 +125,19 @@ export default function Settings() {
                     Secondary Alert
                   </label>
                   <span className="rounded-full bg-tertiary-container px-3 py-1 text-xs font-medium text-tertiary">
-                    1 Week Before
+                    {secondaryAlert} Days Before
                   </span>
                 </div>
 
-                <input
-                  type="range"
-                  min="1"
-                  max="30"
-                  defaultValue="7"
-                  className="h-2 w-full cursor-pointer appearance-none rounded-xl bg-surface-container-high accent-tertiary"
+                <Stepper
+                  value={secondaryAlert}
+                  onChange={setSecondaryAlert}
+                  min={primaryAlert + 1}
+                  max={30}
                 />
 
                 <div className="flex justify-between text-[10px] font-bold uppercase tracking-tighter text-on-surface-variant">
-                  <span>3 Days</span>
+                  <span>{primaryAlert + 1} Days</span>
                   <span>15 Days</span>
                   <span>30 Days</span>
                 </div>
@@ -196,15 +200,44 @@ export default function Settings() {
                   How should the AI suggest scheduling your most difficult
                   tasks?
                 </p>
-
+                
                 <div className="flex flex-col gap-3 md:flex-row">
-                  <button className="flex-1 rounded-xl border border-outline-variant/20 bg-surface-container-low px-6 py-3 text-sm font-semibold text-on-surface transition-all hover:border-primary">
+                  {/* Eat the Frog */}
+                  <button
+                    onClick={() => setStrategy("frog")}
+                    className={`flex-1 rounded-xl px-6 py-3 text-sm transition-all
+      ${
+        strategy === "frog"
+          ? "border border-outline-variant/10 bg-primary/5 font-bold text-primary"
+          : "border border-outline-variant/20 bg-surface-container-low font-semibold text-on-surface hover:border-primary"
+      }`}
+                  >
                     Eat the Frog (Early)
                   </button>
-                  <button className="flex-1 rounded-xl border border-outline-variant/10 bg-primary/5 px-6 py-3 text-sm font-bold text-primary">
+
+                  {/* Balanced */}
+                  <button
+                    onClick={() => setStrategy("balanced")}
+                    className={`flex-1 rounded-xl px-6 py-3 text-sm transition-all
+      ${
+        strategy === "balanced"
+          ? "border border-outline-variant/10 bg-primary/5 font-bold text-primary"
+          : "border border-outline-variant/20 bg-surface-container-low font-semibold text-on-surface hover:border-primary"
+      }`}
+                  >
                     Balanced Flow
                   </button>
-                  <button className="flex-1 rounded-xl border border-outline-variant/20 bg-surface-container-low px-6 py-3 text-sm font-semibold text-on-surface transition-all hover:border-primary">
+
+                  {/* Night Owl */}
+                  <button
+                    onClick={() => setStrategy("night")}
+                    className={`flex-1 rounded-xl px-6 py-3 text-sm transition-all
+      ${
+        strategy === "night"
+          ? "border border-outline-variant/10 bg-primary/5 font-bold text-primary"
+          : "border border-outline-variant/20 bg-surface-container-low font-semibold text-on-surface hover:border-primary"
+      }`}
+                  >
                     Night Owl Focus
                   </button>
                 </div>
