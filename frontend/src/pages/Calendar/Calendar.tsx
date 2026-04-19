@@ -6,7 +6,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 
 // Types
 import type { DatesSetArg, EventInput } from "@fullcalendar/core";
-import type { ApiEvent } from "./calendar";
+import type { ApiEvent } from "./types";
 
 // React
 import { useEffect, useRef, useState } from "react";
