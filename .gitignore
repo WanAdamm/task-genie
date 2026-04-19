@@ -30,3 +30,5 @@ backend/venv/Lib/site-packages"__pycache__/"
 "*.pyc" 
 backend/app/models/__pycache__
 backend/app/routes/__pycache__
+backend/app/services/__pycache__
+backend/app/__pycache__
