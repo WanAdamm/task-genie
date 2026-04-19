@@ -8,7 +8,135 @@ export default function Settings() {
   const [primaryAlert, setPrimaryAlert] = useState(14);
   const [secondaryAlert, setSecondaryAlert] = useState(14);
 
+  const [dailyDigest, setDailyDigest] = useState(true);
+  const [weeklyReport, setWeeklyReport] = useState(true);
+  const [deadlineAlerts, setDeadlineAlerts] = useState(true);
+
   const [strategy, setStrategy] = useState<Strategy>("balanced");
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const payload = {
+        calendarSync: {
+          googleCalendar: {
+            connected: true,
+            provider: "google",
+            syncEnabled: true,
+            syncMode: "two_way",
+          },
+        },
+        email: {
+          dailyDigest: dailyDigest,
+          deadlineAlerts: deadlineAlerts,
+          weeklyReport: weeklyReport,
+        },
+        reminders: {
+          primaryAlertDays: primaryAlert,
+          secondaryAlertDays: secondaryAlert,
+        },
+        two_way: {
+          confidenceLevel: level,
+          taskDifficultyStrategy:
+            strategy === "frog"
+              ? "early"
+              : strategy === "night"
+                ? "late"
+                : "balanced",
+        },
+      };
+
+      const res = await fetch("http://127.0.0.1:8000/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        let errorText = "Failed to save preferences";
+
+        try {
+          const errorData = await res.json();
+          errorText = errorData.detail || errorText;
+        } catch {
+          // ignore JSON parsing failure
+        }
+
+        throw new Error(errorText);
+      }
+
+      await res.json();
+
+      setSaveMessage({
+        type: "success",
+        text: "Preferences saved successfully.",
+      });
+
+      // save to localStorage for caching
+      localStorage.setItem("settings", JSON.stringify(payload));
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Something went wrong.",
+      });
+    } finally {
+      setIsSaving(false);
+
+      setTimeout(() => {
+        setSaveMessage(null);
+      }, 3000);
+    }
+  };
+
+  const hydrateFromStorage = () => {
+    const cached = localStorage.getItem("settings");
+    if (!cached) return;
+
+    const data = JSON.parse(cached);
+
+    const strategyMap: Record<string, Strategy> = {
+      early: "frog",
+      balanced: "balanced",
+      late: "night",
+    };
+
+    setPrimaryAlert(data.reminders.primaryAlertDays);
+    setSecondaryAlert(data.reminders.secondaryAlertDays);
+    setLevel(data.two_way.confidenceLevel);
+    setStrategy(strategyMap[data.two_way.taskDifficultyStrategy]);
+    setDailyDigest(data.email.dailyDigest);
+    setWeeklyReport(data.email.weeklyReport);
+    setDeadlineAlerts(data.email.deadlineAlerts);
+  };
+
+  // rehydrate from storage and ask user confirmation
+  const handleDiscard = () => {
+    if (!confirm("Discard all unsaved changes?")) return;
+
+    try {
+      hydrateFromStorage();
+
+      setSaveMessage({
+        type: "success",
+        text: "Changes discarded.",
+      });
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Something went wrong.",
+      });
+    }
+  };
 
   return (
     <main className="min-h-screen overflow-y-auto bg-surface max-w-6xl mx-auto px-6 py-10 md:px-8">
@@ -43,7 +171,8 @@ export default function Settings() {
                 <input
                   type="checkbox"
                   className="peer sr-only"
-                  defaultChecked
+                  checked={dailyDigest}
+                  onChange={(e) => setDailyDigest(e.target.checked)}
                 />
                 <div className="relative h-6 w-11 rounded-full bg-surface-container-high transition-colors peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
               </label>
@@ -58,7 +187,12 @@ export default function Settings() {
               </div>
 
               <label className="relative inline-flex cursor-pointer items-center">
-                <input type="checkbox" className="peer sr-only" />
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={weeklyReport}
+                  onChange={(e) => setWeeklyReport(e.target.checked)}
+                />
                 <div className="relative h-6 w-11 rounded-full bg-surface-container-high transition-colors peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
               </label>
             </div>
@@ -75,7 +209,8 @@ export default function Settings() {
                 <input
                   type="checkbox"
                   className="peer sr-only"
-                  defaultChecked
+                  checked={deadlineAlerts}
+                  onChange={(e) => setDeadlineAlerts(e.target.checked)}
                 />
                 <div className="relative h-6 w-11 rounded-full bg-surface-container-high transition-colors peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
               </label>
@@ -200,7 +335,7 @@ export default function Settings() {
                   How should the AI suggest scheduling your most difficult
                   tasks?
                 </p>
-                
+
                 <div className="flex flex-col gap-3 md:flex-row">
                   {/* Eat the Frog */}
                   <button
@@ -278,12 +413,39 @@ export default function Settings() {
           </div>
         </section>
 
+        {/* toast message */}
+        {saveMessage && (
+          <div
+            className={`rounded-xl px-4 py-3 text-sm font-semibold shadow-sm ${
+              saveMessage.type === "success"
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}
+          >
+            {saveMessage.text}
+          </div>
+        )}
+
         <footer className="flex items-center justify-end gap-4 border-t border-outline-variant/10 pt-4">
-          <button className="px-6 py-3 text-sm font-bold text-on-surface-variant transition-colors hover:text-on-surface">
+          {/* discard change button */}
+          <button
+            onClick={handleDiscard}
+            className="px-6 py-3 text-sm font-bold text-on-surface-variant transition-colors hover:text-on-surface"
+          >
             Discard Changes
           </button>
-          <button className="rounded-xl bg-gradient-to-br from-primary to-primary-dim px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40">
-            Save Preferences
+
+          {/* save button */}
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`rounded-xl px-6 py-3 text-sm font-bold text-white shadow-lg transition-all ${
+              isSaving
+                ? "cursor-not-allowed bg-surface-container-high text-on-surface-variant shadow-none"
+                : "bg-gradient-to-br from-primary to-primary-dim shadow-primary/20 hover:shadow-primary/40"
+            }`}
+          >
+            {isSaving ? "Saving..." : "Save Preferences"}
           </button>
         </footer>
       </div>
