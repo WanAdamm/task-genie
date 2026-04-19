@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from app.routes.events import router as events_router
+from app.routes.settings import router as settings_router
 
 load_dotenv()
 app = FastAPI(title="Student Scheduler API")
@@ -25,6 +26,7 @@ app.add_middleware(
 )
 
 app.include_router(events_router, prefix="/events", tags=["events"])
+app.include_router(settings_router, prefix="/settings", tags=["settings"])
 
 
 @app.get("/")
