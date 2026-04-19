@@ -26,4 +26,7 @@ dist-ssr
 backend/venv
 backend/serviceAccountKey.json
 backend/.env
-backend/venv/Lib/site-packages
+backend/venv/Lib/site-packages"__pycache__/" 
+"*.pyc" 
+backend/app/models/__pycache__
+backend/app/routes/__pycache__
