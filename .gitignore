@@ -7,28 +7,36 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Node/Vite Frontend
+node_modules/
+dist/
+dist-ssr/
 *.local
+.eslintcache
+.vite-inspect/
 
-# Editor directories and files
-.vscode/*
+# Python Backend
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+ENV/
+env/
+backend/venv/
+backend/serviceAccountKey.json
+backend/.env
+
+# Editor / OS
+.vscode/
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-backend/venv
-backend/serviceAccountKey.json
-backend/.env
-backend/venv/Lib/site-packages"__pycache__/" 
-"*.pyc" 
-backend/app/models/__pycache__
-backend/app/routes/__pycache__
-backend/app/services/__pycache__
-backend/app/__pycache__
