@@ -54,8 +54,8 @@ export default function Settings() {
         },
       };
 
-      const res = await fetch("http://127.0.0.1:8000/settings", {
-        method: "POST",
+      const res = await fetch("/api/settings", {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },

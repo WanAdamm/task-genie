@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
-from app.models.event import EventCreate
-from app.services.firestore import get_events_collection
+from models.event import EventCreate
+from services.firestore import get_events_collection
+from services.llm_planner import generate_assignment_plan
+
 
 router = APIRouter()
 
@@ -34,7 +37,7 @@ def serialize_doc(doc):
 # POST /events
 # Create a new calendar event
 # ----------------------------------------
-@router.post("/")
+@router.post("")
 def create_event(payload: EventCreate):
     # --- Basic validation ---
     if payload.end <= payload.start:
@@ -103,8 +106,8 @@ def create_event(payload: EventCreate):
 # GET /events
 # Fetch events with optional date filtering
 # ----------------------------------------
-@router.get("/")
-def get_events(
+@router.get("")
+def list_events(
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
 ):
@@ -180,3 +183,49 @@ def get_events(
             status_code=400,
             detail="Invalid datetime format. Use ISO 8601 format.",
         )
+
+
+# ----------------------------------------
+# POST /events/generate-plan
+# Generate study schedule via Gemini
+# ----------------------------------------
+class AssignmentPlanCreate(BaseModel):
+    courseName: str
+    dueDate: str
+    assignmentType: str
+    priority: str
+    difficulty: int
+    requirements: str
+
+@router.post("/generate-plan")
+def generate_plan(payload: AssignmentPlanCreate):
+    try:
+        try:
+            # Try parsing ISO timestamp (standard from input type="date" or datetime-local)
+            # Remove potential Z / timezone markers to parse clean local or UTC datetime
+            clean_date = payload.dueDate
+            if clean_date.endswith("Z"):
+                clean_date = clean_date[:-1] + "+00:00"
+            due_dt = datetime.fromisoformat(clean_date)
+        except ValueError:
+            # Fallback if only date is passed e.g. YYYY-MM-DD
+            try:
+                due_dt = datetime.strptime(payload.dueDate, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid dueDate format. Use YYYY-MM-DD or ISO 8601.")
+
+        events = generate_assignment_plan(
+            course_name=payload.courseName,
+            due_date=due_dt,
+            assignment_type=payload.assignmentType,
+            priority=payload.priority,
+            difficulty=payload.difficulty,
+            requirements=payload.requirements
+        )
+        return {"status": "success", "events": events}
+    except ValueError as e:
+        if "GEMINI_API_KEY" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")

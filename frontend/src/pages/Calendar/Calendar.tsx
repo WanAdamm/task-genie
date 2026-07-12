@@ -11,6 +11,9 @@ import type { ApiEvent } from "./types";
 // React
 import { useEffect, useRef, useState } from "react";
 
+// Components
+import Stepper from "@/components/ui/stepper";
+
 // Styling
 import "./Calendar.css";
 
@@ -28,6 +31,16 @@ const viewMap = {
   timeline: "timeGridDay", // placeholder until custom timeline
   month: "dayGridMonth",
 } as const;
+
+// AI strictness labels
+const STRICTNESS_LABELS: Record<number, string> = {
+  1: "Flexible",
+  2: "Moderate",
+  3: "Strict",
+};
+
+// get today's date
+const today = new Date().toISOString().split("T")[0];
 
 // ----------------------------------------
 // DATA TRANSFORMATION
@@ -149,6 +162,9 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // aiStrictness slider control
+  const [aiStrictness, setAIStrictness] = useState(3);
+
   // ----------------------------------------
   // STATE: UI control (view switching)
   // ----------------------------------------
@@ -170,7 +186,7 @@ export default function Calendar() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch("http://127.0.0.1:8000/events/");
+        const response = await fetch("/api/events");
 
         if (!response.ok) {
           throw new Error(`Failed to fetch events: ${response.status}`);
@@ -338,15 +354,15 @@ export default function Calendar() {
                 plugins={[timeGridPlugin, interactionPlugin, dayGridPlugin]}
                 // Initial view only applies once (dynamic changes handled via ref)
                 initialView={viewMap[view]}
-                initialDate="2026-05-01"
+                initialDate={today}
                 headerToolbar={{
                   left: "",
                   center: "",
                   right: "",
                 }}
                 dayHeaderFormat={{ weekday: "short", day: "numeric" }}
-                slotMinTime="08:00:00"
-                slotMaxTime="21:00:00"
+                slotMinTime="06:00:00"
+                slotMaxTime="24:00:00"
                 allDaySlot={false}
                 nowIndicator={true}
                 editable={false}
@@ -426,14 +442,18 @@ export default function Calendar() {
                     AI Strictness
                   </label>
                   <span className="text-xs font-bold text-primary">
-                    Moderate
+                    {STRICTNESS_LABELS[aiStrictness] || "Unknown"}
                   </span>
                 </div>
-                <input
-                  type="range"
-                  className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-surface-container-high accent-primary"
+
+                <Stepper
+                  value={aiStrictness}
+                  onChange={setAIStrictness}
+                  min={1}
+                  max={3}
                 />
               </div>
+
               <div className="space-y-3">
                 <label className="group flex cursor-pointer items-center gap-3">
                   <div className="flex h-5 w-5 items-center justify-center rounded border-2 border-outline-variant/10 transition-colors group-hover:border-primary">
@@ -459,40 +479,7 @@ export default function Calendar() {
                 </label>
               </div>
             </div>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl border border-outline-variant/10 p-6 text-on-primary shadow-sm md:p-8">
-            <div className="relative z-10">
-              <div className="mb-6 flex items-start justify-between">
-                <span className="material-symbols-outlined text-4xl text-white/50">
-                  calendar_month
-                </span>
-                <div className="rounded-xl border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest">
-                  Sync Active
-                </div>
-              </div>
-              <p className="mb-1 text-xs font-medium text-white/60">
-                External Events Found
-              </p>
-              <h5 className="mb-4 font-headline text-3xl font-extrabold">
-                12{" "}
-                <span className="text-lg font-medium opacity-50">
-                  this week
-                </span>
-              </h5>
-              <div className="flex -space-x-2">
-                <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-[#113069] bg-white/10 text-[10px] font-bold">
-                  JD
-                </div>
-                <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-[#113069] bg-white/10 text-[10px] font-bold">
-                  AL
-                </div>
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#113069] bg-primary">
-                  <span className="material-symbols-outlined text-xs">add</span>
-                </div>
-              </div>
-            </div>
-            <div className="absolute right-0 top-0 -mr-16 -mt-16 h-32 w-32 rounded-full bg-primary/20 blur-3xl" />
-          </div>
+          </div>cd f
         </section>
       </div>
     </main>

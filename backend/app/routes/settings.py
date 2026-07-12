@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
-from app.models.setting import SettingResponse, SettingCreate
-from app.services.firestore import getSettings
+from models.setting import SettingResponse, SettingCreate
+from services.firestore import getSettings
 
 router = APIRouter()
 
@@ -41,8 +41,8 @@ def serialize_doc(doc):
 # POST /settings
 # Create or replace app settings
 # ----------------------------------------
-@router.post("/")
-def create_settings(payload: SettingCreate):
+@router.put("")
+def update_settings(payload: SettingCreate):
     # --- Audit timestamp ---
     updated_at = datetime.now(timezone.utc)
 
@@ -70,7 +70,7 @@ def create_settings(payload: SettingCreate):
 # GET /settings
 # Fetch the single settings document
 # ----------------------------------------
-@router.get("/", response_model=SettingResponse)
+@router.get("", response_model=SettingResponse)
 def get_settings():
     doc_ref = getSettings()
     doc = doc_ref.get()
