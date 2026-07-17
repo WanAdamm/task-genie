@@ -11,6 +11,9 @@ lerna-debug.log*
 node_modules/
 dist/
 dist-ssr/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 *.local
 .eslintcache
 .vite-inspect/

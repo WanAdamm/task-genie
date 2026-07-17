@@ -1,396 +1,407 @@
 import Stepper from "@/components/ui/stepper";
-import { useState } from "react";
+import type {
+  ConfirmResponse,
+  GeneratedDraft,
+  PlanPriority,
+  PlanResponse,
+  SchedulePolicy,
+  ScheduleResponse,
+} from "@/features/assignments/types";
+import { weekdays, type AvailabilityConfig } from "@/features/settings/types";
+import { useAuth } from "@/hooks/auth-context";
+import { apiFetch } from "@/lib/api";
+import {
+  getCachedCalendarEvents,
+  markCalendarCacheDirty,
+  mergeCachedCalendarEvents,
+} from "@/lib/calendar-cache";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const priorities = ["LOW", "MED", "HIGH"] as const;
-type Priority = (typeof priorities)[number];
+type Stage = "blueprint" | "questions" | "draft" | "preview";
+type SettingsWithCourses = { courses?: unknown };
+const NEW_COURSE_VALUE = "__new_course__";
+const priorities: Array<{ value: PlanPriority; label: string }> = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Med" },
+  { value: "high", label: "High" },
+];
+
+function normalizeCourses(courses: unknown) {
+  if (!Array.isArray(courses)) return [];
+  return Array.from(
+    new Set(
+      courses
+        .filter((course): course is string => typeof course === "string")
+        .map((course) => course.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+async function responseJson<T>(response: Response): Promise<T> {
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.detail || `Request failed with status ${response.status}`);
+  }
+  return data as T;
+}
+
+async function saveCourse(courseName: string, currentCourses: string[]) {
+  if (currentCourses.includes(courseName)) return currentCourses;
+  const settingsResponse = await apiFetch("/api/settings");
+  let settings: SettingsWithCourses | null = null;
+  if (settingsResponse.ok) settings = await settingsResponse.json();
+  if (!settingsResponse.ok && settingsResponse.status !== 404) {
+    throw new Error("Could not load settings before saving the course.");
+  }
+  const persistedCourses = normalizeCourses(settings?.courses);
+  const nextCourses = normalizeCourses([
+    ...currentCourses,
+    ...persistedCourses,
+    courseName,
+  ]);
+  const emptyAvailability: AvailabilityConfig = {
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    weekly: weekdays.reduce<AvailabilityConfig["weekly"]>((weekly, day) => {
+      weekly[day] = [];
+      return weekly;
+    }, {
+      monday: [],
+      tuesday: [],
+      wednesday: [],
+      thursday: [],
+      friday: [],
+      saturday: [],
+      sunday: [],
+    }),
+    minimumBlockMinutes: 30,
+    maximumBlockMinutes: 120,
+    breakMinutes: 10,
+    maximumDailyMinutes: 360,
+  };
+  await responseJson(
+    await apiFetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...settings,
+        courses: nextCourses,
+        availability: settings ? undefined : emptyAvailability,
+      }),
+    }),
+  );
+  return nextCourses;
+}
+
+const defaultPolicy: SchedulePolicy = {
+  allowOutsideWorkHours: false,
+  additionalDailyMinutes: 0,
+  leaveUnscheduled: false,
+};
 
 export default function Assignment() {
+  const { user } = useAuth();
   const navigate = useNavigate();
-
-  // State variables for inputs
+  const [stage, setStage] = useState<Stage>("blueprint");
   const [courseName, setCourseName] = useState("");
+  const [courseOptions, setCourseOptions] = useState<string[]>([]);
+  const [isAddingCourse, setIsAddingCourse] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [assignmentType, setAssignmentType] = useState("Essay");
-  const [priority, setPriority] = useState<Priority>("MED");
-  const [level, setLevel] = useState(2); // 1: Easy, 2: Medium, 3: Hard
+  const [priority, setPriority] = useState<PlanPriority>("medium");
+  const [difficulty, setDifficulty] = useState(2);
   const [requirements, setRequirements] = useState("");
-
-  // UI state variables
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingStep, setLoadingStep] = useState(1);
-  const [loadingMessage, setLoadingMessage] = useState("");
+  const [plan, setPlan] = useState<PlanResponse | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useState<GeneratedDraft | null>(null);
+  const [revision, setRevision] = useState(1);
+  const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  const [policy, setPolicy] = useState<SchedulePolicy>(defaultPolicy);
+  const [isWorking, setIsWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Derived word count
-  const wordCount = requirements.trim() ? requirements.trim().split(/\s+/).length : 0;
+  useEffect(() => {
+    if (!user) return;
+    void apiFetch("/api/settings")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const settings = (await response.json()) as SettingsWithCourses;
+        setCourseOptions(normalizeCourses(settings.courses));
+      })
+      .catch(() => undefined);
+  }, [user]);
 
-  const getDifficultyText = (lvl: number) => {
-    switch (lvl) {
-      case 1:
-        return "Easy";
-      case 2:
-        return "Medium";
-      case 3:
-        return "Hard";
-      default:
-        return "Medium";
+  const run = async (work: () => Promise<void>) => {
+    setIsWorking(true);
+    setError(null);
+    try {
+      await work();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The planner could not continue.");
+    } finally {
+      setIsWorking(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!courseName.trim()) {
-      setError("Please specify the Course Name.");
-      return;
-    }
-    if (!dueDate) {
-      setError("Please select a valid Due Date.");
-      return;
-    }
-
-    setIsLoading(true);
-    setLoadingStep(1);
-    setLoadingMessage("Analyzing assignment requirements...");
-
-    const messages = [
-      "Analyzing assignment requirements...",
-      "Retrieving study preferences from settings...",
-      "Optimizing study blocks & workload strategy...",
-      "Generating personalized calendar events...",
-      "Writing study schedule to Firestore..."
-    ];
-
-    let currentStep = 1;
-    const interval = setInterval(() => {
-      if (currentStep < messages.length) {
-        currentStep += 1;
-        setLoadingStep(currentStep);
-        setLoadingMessage(messages[currentStep - 1]);
+  const createPlan = (event: React.FormEvent) => {
+    event.preventDefault();
+    void run(async () => {
+      const trimmedCourse = courseName.trim();
+      if (!trimmedCourse || !dueDate) throw new Error("Choose a course and deadline.");
+      const parsedDeadline = new Date(dueDate);
+      if (Number.isNaN(parsedDeadline.getTime()) || parsedDeadline <= new Date()) {
+        throw new Error("Choose a deadline in the future.");
       }
-    }, 1800);
-
-    try {
-      const response = await fetch("/api/events/generate-plan", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          courseName,
-          dueDate,
-          assignmentType,
-          priority: priority.toLowerCase(),
-          difficulty: level,
-          requirements,
+      if (user) {
+        setCourseOptions(await saveCourse(trimmedCourse, courseOptions));
+      }
+      const response = await responseJson<PlanResponse>(
+        await apiFetch("/api/assignment-plans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            courseName: trimmedCourse,
+            dueDate: parsedDeadline.toISOString(),
+            assignmentType,
+            priority,
+            difficulty,
+            requirements,
+          }),
         }),
-      });
-
-      clearInterval(interval);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Server returned error ${response.status}`);
+      );
+      setPlan(response);
+      setRevision(response.revision);
+      if (response.status === "awaiting_answers") {
+        setStage("questions");
+      } else {
+        setDraft(response.draft ?? null);
+        setStage("draft");
       }
+    });
+  };
 
-      setLoadingStep(5);
-      setLoadingMessage("Success! Timeline created.");
+  const submitAnswers = () => {
+    if (!plan) return;
+    void run(async () => {
+      const submittedAnswers = (plan.questions ?? []).map((question) => ({
+        questionId: question.id,
+        answer: answers[question.id]?.trim(),
+      }));
+      if (submittedAnswers.some((answer) => !answer.answer)) {
+        throw new Error("Answer each question before generating the draft.");
+      }
+      const response = await responseJson<PlanResponse>(
+        await apiFetch(`/api/assignment-plans/${plan.planId}/answers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers: submittedAnswers }),
+        }),
+      );
+      setDraft(response.draft ?? null);
+      setRevision(response.revision);
+      setStage("draft");
+    });
+  };
 
-      setTimeout(() => {
-        setIsLoading(false);
-        navigate("/dashboard/calendar");
-      }, 800);
+  const updateSubtask = (
+    index: number,
+    field: "title" | "description" | "estimatedMinutes",
+    value: string | number,
+  ) => {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            subtasks: current.subtasks.map((task, taskIndex) =>
+              taskIndex === index ? { ...task, [field]: value } : task,
+            ),
+          }
+        : current,
+    );
+  };
 
-    } catch (err: any) {
-      clearInterval(interval);
-      console.error(err);
-      setError(err.message || "Failed to generate AI plan. Please check your network and API key config.");
-      setIsLoading(false);
+  const saveAndPreview = () => {
+    if (!plan || !draft) return;
+    void run(async () => {
+      if (draft.subtasks.some((task) => task.estimatedMinutes < 15)) {
+        throw new Error("Every subtask needs at least 15 minutes.");
+      }
+      const updated = await responseJson<{ revision: number; draft: GeneratedDraft }>(
+        await apiFetch(`/api/assignment-plans/${plan.planId}/draft`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revision, draft }),
+        }),
+      );
+      setRevision(updated.revision);
+      const preview = await responseJson<ScheduleResponse>(
+        await apiFetch(`/api/assignment-plans/${plan.planId}/preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revision: updated.revision, policy: defaultPolicy }),
+        }),
+      );
+      setPolicy(defaultPolicy);
+      setSchedule(preview);
+      setStage("preview");
+    });
+  };
+
+  const tryOption = (optionId: string) => {
+    if (!plan) return;
+    if (optionId === "edit_draft") {
+      setStage("draft");
+      return;
     }
+    const nextPolicy: SchedulePolicy = {
+      allowOutsideWorkHours: optionId === "outside_work_hours",
+      additionalDailyMinutes: optionId === "increase_daily_limit" ? 120 : 0,
+      leaveUnscheduled: optionId === "leave_unscheduled",
+    };
+    void run(async () => {
+      const preview = await responseJson<ScheduleResponse>(
+        await apiFetch(`/api/assignment-plans/${plan.planId}/preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revision, policy: nextPolicy }),
+        }),
+      );
+      setPolicy(nextPolicy);
+      setSchedule(preview);
+    });
+  };
+
+  const confirmSchedule = () => {
+    if (!plan) return;
+    void run(async () => {
+      const result = await responseJson<ConfirmResponse | ScheduleResponse>(
+        await apiFetch(`/api/assignment-plans/${plan.planId}/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revision, policy }),
+        }),
+      );
+      if (result.status !== "scheduled") {
+        setSchedule(result);
+        return;
+      }
+      if (user && result.events.length) {
+        if (getCachedCalendarEvents(user.uid)) {
+          mergeCachedCalendarEvents(user.uid, result.events);
+        } else {
+          markCalendarCacheDirty(user.uid);
+        }
+      }
+      navigate("/dashboard/calendar");
+    });
+  };
+
+  const reset = () => {
+    setStage("blueprint");
+    setPlan(null);
+    setDraft(null);
+    setSchedule(null);
+    setAnswers({});
+    setPolicy(defaultPolicy);
   };
 
   return (
-    <main className="min-h-screen">
-      {/* Premium Loader Overlay */}
-      {isLoading && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-surface-container-lowest/80 backdrop-blur-md">
-          <div className="relative flex flex-col items-center max-w-sm w-full p-8 rounded-2xl border border-outline-variant/10 bg-surface-container-low shadow-2xl text-center">
-            {/* Spinning/pulsing animation */}
-            <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <span className="material-symbols-outlined text-4xl animate-spin" style={{ animationDuration: '3s' }}>
-                progress_activity
-              </span>
-              <span className="absolute text-2xl material-symbols-outlined animate-pulse">
-                magic_button
-              </span>
-            </div>
-            
-            <h3 className="mb-2 font-headline text-lg font-bold text-on-surface">
-              TaskGenie Planning Engine
-            </h3>
-            
-            <p className="text-xs font-semibold text-primary transition-all duration-300">
-              {loadingMessage}
-            </p>
-
-            {/* Stepped progress dots */}
-            <div className="mt-6 flex w-24 gap-3 justify-center">
-              {[1, 2, 3, 4].map((step) => (
-                <div 
-                  key={step} 
-                  className={`h-2 w-2 rounded-full transition-all duration-500 ${
-                    loadingStep >= step ? "bg-primary scale-125" : "bg-outline-variant/20"
-                  }`} 
-                />
-              ))}
-            </div>
+    <div className="dashboard-page mx-auto w-full max-w-6xl text-foreground">
+      <header className="dashboard-page-header border-b border-border pb-5">
+        <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">Assignment planner</p>
+        <div className="mt-1 flex flex-col justify-between gap-3 md:flex-row md:items-end">
+          <div>
+            <h1 className="font-heading text-3xl font-extrabold tracking-tight md:text-4xl">Build a credible runway</h1>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">Define the work, challenge the estimate, then place it around commitments already on your calendar.</p>
           </div>
+          {stage !== "blueprint" && (
+            <button type="button" onClick={reset} className="text-xs font-bold text-muted-foreground hover:text-foreground">Start over</button>
+          )}
         </div>
-      )}
+      </header>
 
-      <div className="mx-auto max-w-6xl px-6 pb-10 pt-24 md:px-8">
-        {/* Error Alert Display */}
-        {error && (
-          <div className="mb-6 rounded-xl border border-error/20 bg-error-container/10 p-4 text-xs font-semibold text-error flex items-start gap-3 shadow-sm animate-fade-in">
-            <span className="material-symbols-outlined text-base">warning</span>
-            <div className="flex-1">
-              <p className="font-bold mb-0.5">Plan Generation Blocked</p>
-              <p className="opacity-80 leading-normal">{error}</p>
-            </div>
-            <button 
-              onClick={() => setError(null)} 
-              className="text-error/60 hover:text-error transition-colors"
-            >
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
+      <div className="dashboard-page-scroll pb-10 pt-6">
+        <ol className="mb-8 grid grid-cols-4 overflow-hidden rounded-xl border border-border bg-card">
+          {(["Blueprint", "Questions", "Estimate", "Schedule"] as const).map((label, index) => {
+            const activeIndex = { blueprint: 0, questions: 1, draft: 2, preview: 3 }[stage];
+            return (
+              <li key={label} className={`border-r border-border px-2 py-3 text-center text-[10px] font-bold uppercase tracking-wider last:border-r-0 ${index <= activeIndex ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>
+                <span className="mr-1 hidden sm:inline">0{index + 1}</span>{label}
+              </li>
+            );
+          })}
+        </ol>
+
+        {error && <div role="alert" className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">{error}</div>}
+
+        {stage === "blueprint" && (
+          <form onSubmit={createPlan} className="grid gap-6 lg:grid-cols-[1fr_0.72fr]">
+            <section className="rounded-xl border border-border bg-card p-6 shadow-sm md:p-8">
+              <h2 className="font-heading text-xl font-bold">What does finished look like?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Paste enough of the brief for the planner to distinguish real deliverables from generic study advice.</p>
+              <textarea value={requirements} onChange={(event) => setRequirements(event.target.value)} rows={14} placeholder="Paste the assignment brief, rubric, required sections, source requirements, or current progress..." className="mt-6 w-full resize-none rounded-xl border border-control-border bg-field p-4 text-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30" />
+              <p className="mt-2 text-right text-[10px] font-bold uppercase text-muted-foreground">{requirements.trim() ? requirements.trim().split(/\s+/).length : 0} words of context</p>
+            </section>
+
+            <section className="rounded-xl border border-border bg-card p-6 shadow-sm md:p-8">
+              <h2 className="font-heading text-xl font-bold">Blueprint</h2>
+              <div className="mt-6 space-y-5">
+                <label className="block text-xs font-bold text-muted-foreground">Course
+                  <select value={isAddingCourse ? NEW_COURSE_VALUE : courseName} onChange={(event) => { if (event.target.value === NEW_COURSE_VALUE) { setIsAddingCourse(true); setCourseName(""); } else { setIsAddingCourse(false); setCourseName(event.target.value); } }} className="mt-2 w-full rounded-xl border border-control-border bg-field px-4 py-3 text-sm text-foreground">
+                    <option value="">Select a course</option>
+                    {courseOptions.map((course) => <option key={course} value={course}>{course}</option>)}
+                    <option value={NEW_COURSE_VALUE}>Add new course...</option>
+                  </select>
+                  {isAddingCourse && <input autoFocus value={courseName} onChange={(event) => setCourseName(event.target.value)} placeholder="Course name" className="mt-2 w-full rounded-xl border border-control-border bg-field px-4 py-3 text-sm text-foreground" />}
+                </label>
+                <label className="block text-xs font-bold text-muted-foreground">Deadline
+                  <input type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="mt-2 w-full rounded-xl border border-control-border bg-field px-4 py-3 text-sm text-foreground" />
+                </label>
+                <label className="block text-xs font-bold text-muted-foreground">Assignment type
+                  <select value={assignmentType} onChange={(event) => setAssignmentType(event.target.value)} className="mt-2 w-full rounded-xl border border-control-border bg-field px-4 py-3 text-sm text-foreground">
+                    <option>Essay</option><option>Lab Report</option><option>Final Project</option><option>Discussion Post</option><option>Presentation</option>
+                  </select>
+                </label>
+                <fieldset><legend className="text-xs font-bold text-muted-foreground">Priority</legend><div className="mt-2 grid grid-cols-3 gap-2">{priorities.map((item) => <button key={item.value} type="button" aria-pressed={priority === item.value} onClick={() => setPriority(item.value)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${priority === item.value ? "border-primary bg-primary text-primary-foreground" : "border-control-border bg-field text-muted-foreground"}`}>{item.label}</button>)}</div></fieldset>
+                <div><p className="text-xs font-bold text-muted-foreground">Difficulty</p><div className="mt-2 flex items-center gap-3"><Stepper value={difficulty} onChange={setDifficulty} max={3} label="Assignment difficulty" /><span className="text-xs font-bold">{["Easy", "Medium", "Hard"][difficulty - 1]}</span></div></div>
+              </div>
+              <button disabled={isWorking} className="mt-8 w-full rounded-xl bg-primary px-6 py-3 text-sm font-extrabold text-primary-foreground disabled:bg-disabled disabled:text-disabled-foreground">{isWorking ? "Reading the brief..." : "Build work estimate"}</button>
+            </section>
+          </form>
+        )}
+
+        {stage === "questions" && plan && (
+          <section className="mx-auto max-w-3xl rounded-xl border border-border bg-card p-6 shadow-sm md:p-8">
+            <p className="text-xs font-bold uppercase tracking-wider text-primary">Up to three useful questions</p>
+            <h2 className="mt-2 font-heading text-2xl font-extrabold">The brief leaves decisions open</h2>
+            <p className="mt-2 text-sm text-muted-foreground">These answers materially affect the breakdown. Availability is handled separately.</p>
+            <div className="mt-8 space-y-6">{plan.questions?.map((question, index) => <label key={question.id} className="block"><span className="font-heading text-base font-bold">{index + 1}. {question.question}</span><span className="mt-1 block text-xs text-muted-foreground">{question.reason}</span><textarea rows={3} value={answers[question.id] ?? ""} onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: event.target.value }))} className="mt-3 w-full rounded-xl border border-control-border bg-field p-4 text-sm" /></label>)}</div>
+            <button type="button" disabled={isWorking} onClick={submitAnswers} className="mt-8 w-full rounded-xl bg-primary px-6 py-3 text-sm font-extrabold text-primary-foreground disabled:bg-disabled">{isWorking ? "Building estimate..." : "Generate editable estimate"}</button>
+          </section>
+        )}
+
+        {stage === "draft" && draft && (
+          <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
+            <section className="space-y-4">
+              <div className="rounded-xl border border-border bg-card p-6"><p className="text-xs font-bold uppercase tracking-wider text-primary">Provisional estimate</p><h2 className="mt-2 font-heading text-2xl font-extrabold">{draft.summary}</h2><p className="mt-2 text-sm text-muted-foreground">Review the work and durations. Nothing reaches your calendar until you confirm the preview.</p></div>
+              {draft.subtasks.map((task, index) => <article key={task.id} className="rounded-xl border border-border bg-card p-5 shadow-sm"><div className="flex gap-4"><span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-extrabold text-primary">{index + 1}</span><div className="min-w-0 flex-1"><input aria-label={`Subtask ${index + 1} title`} value={task.title} onChange={(event) => updateSubtask(index, "title", event.target.value)} className="w-full border-0 bg-transparent font-heading text-base font-bold outline-none" /><textarea aria-label={`Subtask ${index + 1} description`} rows={2} value={task.description} onChange={(event) => updateSubtask(index, "description", event.target.value)} className="mt-2 w-full resize-none rounded-lg border border-control-border bg-field p-3 text-sm text-muted-foreground" /><div className="mt-3 flex flex-wrap items-center gap-3"><label className="text-xs font-bold text-muted-foreground">Minutes <input type="number" min={15} step={15} value={task.estimatedMinutes} onChange={(event) => updateSubtask(index, "estimatedMinutes", Number(event.target.value))} className="ml-2 w-20 rounded-lg border border-control-border bg-field px-2 py-1.5 text-foreground" /></label><span className="rounded-full bg-surface-container-high px-3 py-1 text-[10px] font-bold uppercase">{task.category.replace("_", " ")}</span>{task.dependencies.length > 0 && <span className="text-[10px] font-bold uppercase text-muted-foreground">After {task.dependencies.join(", ")}</span>}</div></div></div></article>)}
+            </section>
+            <aside className="h-fit rounded-xl border border-border bg-card p-6 lg:sticky lg:top-0"><p className="text-xs font-bold uppercase text-muted-foreground">Total effort</p><p className="mt-1 font-heading text-4xl font-extrabold text-primary">{Math.round(draft.subtasks.reduce((sum, task) => sum + task.estimatedMinutes, 0) / 6) / 10}<span className="ml-1 text-sm text-muted-foreground">hours</span></p><div className="mt-6 space-y-2">{draft.assumptions.map((assumption) => <p key={assumption} className="text-xs leading-relaxed text-muted-foreground">{assumption}</p>)}</div><button type="button" disabled={isWorking} onClick={saveAndPreview} className="mt-6 w-full rounded-xl bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground disabled:bg-disabled">{isWorking ? "Finding free time..." : "Preview schedule"}</button></aside>
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="space-y-8 lg:col-span-7">
-            <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
-              <div className="mb-6 flex items-center justify-between">
-                <h3 className="flex items-center gap-2 font-headline font-bold text-on-surface">
-                  <span className="material-symbols-outlined text-primary">
-                    upload_file
-                  </span>
-                  Resource Integration
-                </h3>
-                <span className="text-[10px] font-bold uppercase tracking-tighter text-on-surface/40">
-                  PDF • IMG • DOCX
-                </span>
-              </div>
-
-              <div className="group relative flex h-64 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant/10 bg-surface-container-low/30 px-6 text-center transition-all hover:border-primary/20 hover:bg-surface-container-low/60">
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/5 transition-transform group-hover:scale-110">
-                  <span className="material-symbols-outlined text-3xl text-primary">
-                    add_to_drive
-                  </span>
-                </div>
-
-                <p className="mb-1 font-headline text-lg font-bold text-on-surface">
-                  Drop your syllabus or prompt
-                </p>
-                <p className="max-w-xs text-sm font-medium text-on-surface/50">
-                  TaskGenie AI will extract deliverables, rubrics, and key dates
-                  automatically.
-                </p>
-
-                <div className="mt-6 flex gap-4">
-                  <button className="flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-white px-6 py-3 text-xs font-bold text-on-surface transition-all hover:shadow-md">
-                    <span className="material-symbols-outlined text-sm">
-                      cloud_upload
-                    </span>
-                    Browse Files
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
-              <h3 className="mb-6 flex items-center gap-2 font-headline font-bold text-on-surface">
-                <span className="material-symbols-outlined text-primary">
-                  edit_note
-                </span>
-                Context &amp; Requirements
-              </h3>
-
-              <div className="space-y-4">
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-on-surface/60">
-                    Describe the assignment or paste text
-                  </span>
-                  <textarea
-                    rows={6}
-                    value={requirements}
-                    onChange={(e) => setRequirements(e.target.value)}
-                    placeholder="Paste the text from your professor's email or the assignment PDF here..."
-                    className="w-full resize-none rounded-xl border-none bg-surface-container-low p-4 font-body text-sm text-on-surface placeholder-on-surface/30 focus:ring-2 focus:ring-primary/20"
-                  />
-                </label>
-
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex gap-2">
-                    <span className="rounded-xl bg-secondary-container px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-on-secondary-container">
-                      Word count
-                    </span>
-                    <span className="rounded-xl bg-secondary-container px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-on-secondary-container">
-                      Tone: Academic
-                    </span>
-                  </div>
-
-                  <p className="text-[10px] font-medium text-on-surface/40">
-                    {wordCount} / 2000 words
-                  </p>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <div className="lg:col-span-5">
-            <div className="sticky top-24 space-y-6">
-              <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
-                <h3 className="mb-6 border-b border-outline-variant/10 pb-4 font-headline font-bold text-on-surface">
-                  Assignment Blueprint
-                </h3>
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface/40">
-                        Course Name
-                      </label>
-                      <input
-                        type="text"
-                        value={courseName}
-                        onChange={(e) => setCourseName(e.target.value)}
-                        placeholder="e.g. Cognitive Psychology 101"
-                        className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 text-on-surface"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface/40">
-                          Due Date
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="date"
-                            value={dueDate}
-                            onChange={(e) => setDueDate(e.target.value)}
-                            className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 text-on-surface"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface/40">
-                          Assignment Type
-                        </label>
-                        <select 
-                          value={assignmentType}
-                          onChange={(e) => setAssignmentType(e.target.value)}
-                          className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 text-on-surface"
-                        >
-                          <option value="Essay">Essay</option>
-                          <option value="Lab Report">Lab Report</option>
-                          <option value="Final Project">Final Project</option>
-                          <option value="Discussion Post">Discussion Post</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-2 w-max block text-[10px] font-bold uppercase tracking-widest text-on-surface/40">
-                          Priority Level
-                        </label>
-
-                        <div className="flex gap-2">
-                          {priorities.map((levelOption) => {
-                            const isActive = priority === levelOption;
-
-                            return (
-                              <button
-                                key={levelOption}
-                                type="button"
-                                onClick={() => setPriority(levelOption)}
-                                className={`flex-1 rounded-xl px-4 py-3 text-[10px] font-bold transition-all
-                                ${
-                                  isActive
-                                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                                    : "bg-surface-container-low text-on-surface/50 hover:bg-primary/10 hover:text-primary"
-                                }`}
-                              >
-                                {levelOption}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-on-surface/40">
-                          Difficulty
-                        </label>
-
-                        <div className="flex items-center gap-2 pt-1.5">
-                          <Stepper value={level} onChange={setLevel} max={3}/>
-                          <span className="whitespace-nowrap text-xs font-bold text-on-surface">
-                            {getDifficultyText(level)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-6">
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-dim px-6 py-3 font-headline text-sm font-extrabold tracking-wide text-white shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
-                    >
-                      <span
-                        className="material-symbols-outlined text-lg"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        magic_button
-                      </span>
-                      Generate AI Plan
-                    </button>
-
-                    <p className="mt-4 px-4 text-center text-[10px] font-medium leading-relaxed text-on-surface/40">
-                      TaskGenie AI will break this down into actionable
-                      sub-tasks, suggested readings, and a study timeline.
-                    </p>
-                  </div>
-                </form>
-              </section>
-
-              <div className="rounded-xl border border-outline-variant/10 bg-[rgba(250,248,255,0.8)] p-6 shadow-sm backdrop-blur-[20px] md:p-8">
-                <div className="flex gap-4">
-                  <span className="material-symbols-outlined text-primary">
-                    lightbulb
-                  </span>
-
-                  <div>
-                    <p className="mb-1 text-xs font-bold text-on-surface">
-                      Academic Tip
-                    </p>
-                    <p className="text-xs font-medium leading-relaxed text-on-surface/60">
-                      Uploading the <strong>Grading Rubric</strong> helps
-                      TaskGenie prioritize the most impactful tasks first.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {stage === "preview" && schedule && (
+          <section className="mx-auto max-w-4xl">
+            {schedule.status === "needs_availability" ? <div className="rounded-xl border border-warning/30 bg-card p-8 text-center"><span className="material-symbols-outlined text-4xl text-warning">calendar_clock</span><h2 className="mt-3 font-heading text-2xl font-extrabold">Set your work hours first</h2><p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{schedule.message} Your browser timezone will be used automatically.</p><button type="button" onClick={() => navigate("/dashboard/settings#availability")} className="mt-6 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground">Open work-hour settings</button></div> : <>
+              <div className="rounded-xl border border-border bg-card p-6 md:p-8"><p className={`text-xs font-bold uppercase tracking-wider ${schedule.status === "ready" ? "text-success" : "text-warning"}`}>{schedule.status === "ready" ? "Ready to place" : "Not enough free time"}</p><div className="mt-2 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h2 className="font-heading text-2xl font-extrabold">{schedule.status === "ready" ? "The runway fits" : `${schedule.unscheduledMinutes} minutes still need a home`}</h2><p className="mt-1 text-sm text-muted-foreground">Required {schedule.requiredMinutes} minutes. Available {schedule.availableMinutes} minutes under the selected policy.</p></div>{schedule.status === "ready" && <button type="button" disabled={isWorking} onClick={confirmSchedule} className="rounded-xl bg-primary px-6 py-3 text-sm font-extrabold text-primary-foreground disabled:bg-disabled">{isWorking ? "Checking calendar..." : "Confirm and add to calendar"}</button>}</div></div>
+              {schedule.status === "infeasible" && <div className="mt-5 grid gap-3 sm:grid-cols-2">{schedule.options?.map((option) => <button key={option.id} type="button" disabled={isWorking} onClick={() => tryOption(option.id)} className="rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/60"><span className="font-bold">{option.label}</span><span className="mt-1 block text-xs text-muted-foreground">{option.description}</span></button>)}</div>}
+              {!!schedule.proposedEvents?.length && <div className="mt-6 space-y-3">{schedule.proposedEvents.map((event, index) => <div key={`${event.subtaskId}-${event.start}-${index}`} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4"><div className="w-28 shrink-0 text-xs font-bold text-primary">{new Date(event.start).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}<span className="mt-1 block text-muted-foreground">{new Date(event.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{event.title}</p><p className="text-xs text-muted-foreground">{event.estimatedMinutes} minutes</p></div></div>)}</div>}
+              {schedule.status === "infeasible" && policy.leaveUnscheduled && <button type="button" disabled={isWorking} onClick={confirmSchedule} className="mt-6 w-full rounded-xl bg-primary px-6 py-3 text-sm font-extrabold text-primary-foreground">Schedule what fits</button>}
+            </>}
+          </section>
+        )}
       </div>
-    </main>
+    </div>
   );
 }

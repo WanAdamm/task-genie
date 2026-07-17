@@ -1,118 +1,311 @@
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.calendar-desktop-rail {
+  display: none;
+}
+
+.calendar-planning-trigger {
+  display: inline-flex;
+}
+
+.calendar-shell > .fc {
+  height: 100%;
+  min-height: 0;
+}
+
 .fc {
-  --fc-border-color: rgb(152 177 242 / 0.1);
-  --fc-page-bg-color: transparent;
-  --fc-neutral-bg-color: transparent;
-  --fc-today-bg-color: rgb(0 83 219 / 0.06);
-  --fc-now-indicator-color: rgb(0 83 219);
+  --fc-border-color: var(--control-border);
+  --fc-page-bg-color: var(--paper);
+  --fc-neutral-bg-color: var(--field);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-today-bg-color: color-mix(in srgb, var(--primary) 12%, transparent);
+  --fc-now-indicator-color: var(--destructive);
+  --fc-highlight-color: color-mix(in srgb, var(--primary) 18%, transparent);
+  --fc-more-link-bg-color: var(--field);
+  --fc-more-link-text-color: var(--foreground);
+  --fc-event-bg-color: var(--event-muted);
+  --fc-event-border-color: var(--event-muted-foreground);
+  --fc-event-text-color: var(--event-muted-foreground);
+  --fc-event-selected-overlay-color: color-mix(in srgb, var(--scrim) 28%, transparent);
+  --fc-non-business-color: var(--disabled);
+  --fc-bg-event-color: var(--success);
+  --fc-bg-event-opacity: 1;
+  --fc-bg-event-text-color: var(--success-foreground);
+  --fc-list-event-hover-bg-color: var(--field);
+  --fc-popover-bg-color: var(--popover);
+  --fc-popover-border-color: var(--control-border);
+  --fc-popover-text-color: var(--popover-foreground);
+  background: var(--fc-page-bg-color);
+  color: var(--foreground);
+  font-family: var(--font-sans);
 }
 
-.fc .fc-toolbar {
-  margin-bottom: 1rem;
+.fc .fc-view-harness,
+.fc .fc-view-harness-active {
+  min-height: 0;
 }
 
-.fc .fc-toolbar-title {
-  font-size: 1.125rem;
-  font-weight: 800;
+.fc .fc-scroller,
+.calendar-planning-drawer-scroll {
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 62%, transparent) transparent;
+  scrollbar-width: thin;
 }
 
-.fc .fc-button {
-  border: 0;
-  border-radius: 0.75rem;
-  background: transparent;
-  color: inherit;
-  box-shadow: none;
+.fc .fc-scroller::-webkit-scrollbar,
+.calendar-planning-drawer-scroll::-webkit-scrollbar {
+  width: 0.45rem;
+  height: 0.45rem;
 }
 
-.fc .fc-button:hover {
-  background: rgb(217 226 255 / 0.5);
+.fc .fc-scroller::-webkit-scrollbar-thumb,
+.calendar-planning-drawer-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 62%, transparent);
+  border-radius: 9999px;
 }
 
-.fc .fc-button:focus,
-.fc .fc-button-primary:focus {
-  box-shadow: none;
+.fc .fc-scroller::-webkit-scrollbar-thumb:hover,
+.calendar-planning-drawer-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+.fc .fc-scrollgrid,
+.fc .fc-scrollgrid-section > td,
+.fc .fc-scrollgrid-section > th {
+  border-color: var(--fc-border-color);
 }
 
 .fc .fc-scrollgrid {
-  border-radius: 1rem;
+  background: var(--fc-page-bg-color);
+  border-radius: 0.6rem;
   overflow: hidden;
 }
 
-.fc .fc-timegrid-slot {
-  height: 3.25rem;
-}
-
 .fc .fc-col-header-cell {
-  background: transparent;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  border-color: var(--fc-border-color);
+  background: var(--fc-neutral-bg-color);
 }
 
 .fc .fc-col-header-cell-cushion {
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  opacity: 0.75;
-  padding: 0.75rem 0;
-}
-
-.fc .fc-timegrid-axis-cushion,
-.fc .fc-timegrid-slot-label-cushion {
-  font-size: 11px;
+  padding: 0.75rem 0.35rem;
+  color: var(--muted-foreground);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.65rem;
   font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  opacity: 0.45;
 }
 
-.fc .fc-timegrid-now-indicator-line {
-  border-width: 2px;
-  opacity: 0.4;
+.fc .fc-daygrid-day-number {
+  padding: 0.5rem 0.6rem;
+  color: var(--muted-foreground);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
 }
 
-.fc .fc-timegrid-now-indicator-arrow {
-  border-color: rgb(0 83 219);
+.fc .fc-day-today .fc-daygrid-day-number {
+  color: var(--primary);
+}
+
+.fc .fc-day-disabled {
+  background: var(--disabled);
+  color: var(--disabled-foreground);
+}
+
+.fc .fc-daygrid-day-frame {
+  min-height: 5.25rem;
+}
+
+.fc .fc-daygrid-day-events {
+  margin: 0 0.25rem;
+}
+
+.fc .fc-daygrid-event-harness {
+  margin-top: 0.125rem;
+}
+
+.fc .fc-daygrid-more-link {
+  border-radius: 0.25rem;
+  color: var(--fc-more-link-text-color);
+}
+
+.fc .fc-daygrid-more-link:hover {
+  background: var(--fc-more-link-bg-color);
+}
+
+.fc .fc-daygrid-more-link:focus-visible,
+.fc .fc-popover-close:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.fc .fc-popover {
+  border-color: var(--fc-popover-border-color);
+  background: var(--fc-popover-bg-color);
+  color: var(--fc-popover-text-color);
+  box-shadow: none;
+}
+
+.fc .fc-popover-header {
+  background: var(--fc-neutral-bg-color);
+  color: var(--fc-popover-text-color);
+}
+
+.fc .fc-popover-close {
+  color: var(--muted-foreground);
+  opacity: 1;
 }
 
 .fc .fc-event {
-  border: 1px solid rgb(152 177 242 / 0.12);
-  border-radius: 0.75rem;
-  padding: 0;
+  --calendar-event-background: var(--event-muted);
+  --calendar-event-foreground: var(--event-muted-foreground);
+  --calendar-event-accent: var(--event-muted-foreground);
+  border: 0;
+  border-left: 3px solid var(--calendar-event-accent);
+  border-radius: 0.25rem;
+  background: var(--calendar-event-background);
+  box-shadow: none;
+  color: var(--calendar-event-foreground);
   overflow: hidden;
 }
 
 .fc .fc-event-main {
-  padding: 0;
-}
-
-.fc .fc-event-time {
-  display: none;
-}
-
-.fc-event-primary {
-  background: rgb(217 226 255 / 0.45);
   color: inherit;
 }
 
-.fc-event-primary-solid {
-  background: rgb(0 83 219);
-  color: white;
+.fc .fc-event:focus-visible {
+  z-index: 5;
+  outline: 2px solid var(--foreground);
+  outline-offset: 1px;
+  box-shadow: none !important;
 }
 
-.fc-event-tertiary {
-  background: rgb(83 95 120 / 0.16);
-  color: inherit;
+.fc .fc-event:focus-visible .calendar-event-content p {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
-.fc-event-error {
-  background: rgb(255 218 214 / 0.55);
-  color: inherit;
+.calendar-event-content {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  padding: 0.18rem 0.35rem;
 }
 
-.fc-event-secondary-muted {
-  background: rgb(228 225 230 / 0.5);
-  opacity: 0.7;
-  color: inherit;
+.calendar-event-content p {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 0.69rem;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-conflict-mark {
+  display: inline-flex;
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.fc .fc-event-study {
+  --calendar-event-background: var(--event-study);
+  --calendar-event-foreground: var(--event-study-foreground);
+  --calendar-event-accent: var(--event-study-foreground);
+}
+
+.fc .fc-event-class {
+  --calendar-event-background: var(--event-class);
+  --calendar-event-foreground: var(--event-class-foreground);
+  --calendar-event-accent: var(--event-class-foreground);
+}
+
+.fc .fc-event-deadline {
+  --calendar-event-background: var(--event-deadline);
+  --calendar-event-foreground: var(--event-deadline-foreground);
+  --calendar-event-accent: var(--event-deadline-foreground);
+}
+
+.fc .fc-event-muted {
+  --calendar-event-background: var(--event-muted);
+  --calendar-event-foreground: var(--event-muted-foreground);
+  --calendar-event-accent: var(--event-muted-foreground);
+}
+
+.fc .fc-event-priority-high {
+  --calendar-event-background: var(--primary);
+  --calendar-event-foreground: var(--primary-foreground);
+  --calendar-event-accent: var(--primary-foreground);
 }
 
 .fc-conflict-bg {
-  background: rgb(186 26 26 / 0.1) !important;
+  box-shadow: inset 0 -2px 0 var(--destructive) !important;
+}
+
+.fc .fc-bg-event {
+  color: var(--fc-bg-event-text-color);
+}
+
+.fc .fc-timegrid-slot {
+  height: 3rem;
+}
+
+.fc .fc-timegrid-axis-cushion,
+.fc .fc-timegrid-slot-label-cushion {
+  color: var(--muted-foreground);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.65rem;
+}
+
+.calendar-inverse-panel .slider-stepper:focus-visible {
+  outline: 2px solid var(--inverse-foreground);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1280px) and (min-height: 850px) {
+  .calendar-layout {
+    grid-template-columns: minmax(0, 1fr) 16.25rem;
+  }
+
+  .calendar-desktop-rail {
+    display: block;
+  }
+
+  .calendar-planning-trigger {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .fc .fc-daygrid-day-frame {
+    min-height: 4.25rem;
+  }
+
+  .fc .fc-col-header-cell-cushion {
+    font-size: 0.55rem;
+  }
+
+  .fc .fc-daygrid-day-number {
+    padding: 0.35rem;
+  }
+
+  .calendar-event-content {
+    padding: 0.2rem 0.28rem;
+  }
 }

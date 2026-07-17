@@ -13,6 +13,8 @@ export type ApiEvent = {
   source: string
   isLocked: boolean
   assignmentId?: string | null
+  planId?: string | null
+  subtaskId?: string | null
   conflict: {
     hasConflict: boolean
     reason?: string | null

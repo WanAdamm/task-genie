@@ -1,10 +1,9 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models.event import EventCreate
-from services.firestore import get_events_collection
-from services.llm_planner import generate_assignment_plan
+from services.auth import get_current_user
+from services.firestore import get_user_events_collection
 
 
 router = APIRouter()
@@ -38,7 +37,9 @@ def serialize_doc(doc):
 # Create a new calendar event
 # ----------------------------------------
 @router.post("")
-def create_event(payload: EventCreate):
+def create_event(payload: EventCreate, current_user=Depends(get_current_user)):
+    user_id = current_user["uid"]
+
     # --- Basic validation ---
     if payload.end <= payload.start:
         raise HTTPException(status_code=400, detail="end must be later than start")
@@ -81,6 +82,8 @@ def create_event(payload: EventCreate):
 
         # Optional linkage to planning system
         "assignmentId": payload.assignmentId,
+        "planId": payload.planId,
+        "subtaskId": payload.subtaskId,
 
         # Nested objects (kept structured)
         "conflict": payload.conflict.model_dump(),
@@ -92,7 +95,7 @@ def create_event(payload: EventCreate):
     }
 
     # --- Write to Firestore ---
-    doc_ref = get_events_collection().document()
+    doc_ref = get_user_events_collection(user_id).document()
     doc_ref.set(doc_data)
 
     # Return serialized version
@@ -110,8 +113,10 @@ def create_event(payload: EventCreate):
 def list_events(
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
+    current_user=Depends(get_current_user),
 ):
-    collection = get_events_collection()
+    user_id = current_user["uid"]
+    collection = get_user_events_collection(user_id)
 
     try:
         # ----------------------------------------
@@ -183,49 +188,3 @@ def list_events(
             status_code=400,
             detail="Invalid datetime format. Use ISO 8601 format.",
         )
-
-
-# ----------------------------------------
-# POST /events/generate-plan
-# Generate study schedule via Gemini
-# ----------------------------------------
-class AssignmentPlanCreate(BaseModel):
-    courseName: str
-    dueDate: str
-    assignmentType: str
-    priority: str
-    difficulty: int
-    requirements: str
-
-@router.post("/generate-plan")
-def generate_plan(payload: AssignmentPlanCreate):
-    try:
-        try:
-            # Try parsing ISO timestamp (standard from input type="date" or datetime-local)
-            # Remove potential Z / timezone markers to parse clean local or UTC datetime
-            clean_date = payload.dueDate
-            if clean_date.endswith("Z"):
-                clean_date = clean_date[:-1] + "+00:00"
-            due_dt = datetime.fromisoformat(clean_date)
-        except ValueError:
-            # Fallback if only date is passed e.g. YYYY-MM-DD
-            try:
-                due_dt = datetime.strptime(payload.dueDate, "%Y-%m-%d")
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid dueDate format. Use YYYY-MM-DD or ISO 8601.")
-
-        events = generate_assignment_plan(
-            course_name=payload.courseName,
-            due_date=due_dt,
-            assignment_type=payload.assignmentType,
-            priority=payload.priority,
-            difficulty=payload.difficulty,
-            requirements=payload.requirements
-        )
-        return {"status": "success", "events": events}
-    except ValueError as e:
-        if "GEMINI_API_KEY" in str(e):
-            raise HTTPException(status_code=400, detail=str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")

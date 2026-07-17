@@ -5,6 +5,7 @@ type SliderStepperProps = {
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  label?: string;
 };
 
 export default function SliderStepper({
@@ -12,6 +13,7 @@ export default function SliderStepper({
   onChange,
   min = 1,
   max = 5,
+  label = "Select level",
 }: SliderStepperProps) {
   const id = useId();
   const levels = Array.from({ length: max - min + 1 }, (_, i) => min + i);
@@ -54,7 +56,8 @@ export default function SliderStepper({
           list={id}
           onChange={(e) => onChange(Number(e.target.value))}
           className="slider-stepper absolute inset-0 z-10 h-8 w-full appearance-none bg-transparent"
-          aria-label="Select level"
+          aria-label={label}
+          aria-valuetext={`${value} of ${max}`}
         />
 
         <datalist id={id}>

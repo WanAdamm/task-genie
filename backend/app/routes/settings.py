@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from models.setting import SettingResponse, SettingCreate
-from services.firestore import getSettings
+from services.auth import get_current_user
+from services.firestore import getUserSettings
 
 router = APIRouter()
 
@@ -37,12 +38,48 @@ def serialize_doc(doc):
         **{key: serialize_firestore_value(value) for key, value in data.items()}
     }
 
+
+def normalize_courses(courses):
+    if not isinstance(courses, list):
+        return []
+
+    normalized = []
+    seen = set()
+
+    for course in courses:
+        if not isinstance(course, str):
+            continue
+
+        course_name = course.strip()
+        if not course_name or course_name in seen:
+            continue
+
+        seen.add(course_name)
+        normalized.append(course_name)
+
+    return normalized
+
 # ----------------------------------------
 # POST /settings
 # Create or replace app settings
 # ----------------------------------------
 @router.put("")
-def update_settings(payload: SettingCreate):
+def update_settings(payload: SettingCreate, current_user=Depends(get_current_user)):
+    user_id = current_user["uid"]
+    doc_ref = getUserSettings(user_id)
+    existing_doc = doc_ref.get()
+    existing_data = existing_doc.to_dict() if existing_doc.exists else {}
+
+    if "courses" in payload.model_fields_set:
+        courses = normalize_courses(payload.courses)
+    else:
+        courses = normalize_courses(existing_data.get("courses"))
+
+    if "availability" in payload.model_fields_set:
+        availability = payload.availability.model_dump()
+    else:
+        availability = existing_data.get("availability", payload.availability.model_dump())
+
     # --- Audit timestamp ---
     updated_at = datetime.now(timezone.utc)
 
@@ -52,12 +89,13 @@ def update_settings(payload: SettingCreate):
         "email": payload.email.model_dump(),
         "reminders": payload.reminders.model_dump(),
         "two_way": payload.two_way.model_dump(),
+        "courses": courses,
+        "availability": availability,
         "updatedAt": updated_at,
     }
 
     # --- Write to Firestore ---
     # Single settings document approach
-    doc_ref = getSettings()
     doc_ref.set(doc_data)
 
     # --- Return serialized version ---
@@ -71,8 +109,9 @@ def update_settings(payload: SettingCreate):
 # Fetch the single settings document
 # ----------------------------------------
 @router.get("", response_model=SettingResponse)
-def get_settings():
-    doc_ref = getSettings()
+def get_settings(current_user=Depends(get_current_user)):
+    user_id = current_user["uid"]
+    doc_ref = getUserSettings(user_id)
     doc = doc_ref.get()
 
     if not doc.exists:

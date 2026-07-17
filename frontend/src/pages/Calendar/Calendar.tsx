@@ -1,66 +1,71 @@
-// FullCalendar Imports
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
-
-// Types
 import type { DatesSetArg, EventInput } from "@fullcalendar/core";
-import type { ApiEvent } from "./types";
-
-// React
-import { useEffect, useRef, useState } from "react";
-
-// Components
+import { useCallback, useEffect, useRef, useState } from "react";
 import Stepper from "@/components/ui/stepper";
-
-// Styling
+import { useAuth } from "@/hooks/auth-context";
+import { apiFetch } from "@/lib/api";
+import {
+  CALENDAR_CACHE_UPDATED,
+  getCachedCalendarEvents,
+  setCachedCalendarEvents,
+  shouldReloadCalendarCache,
+} from "@/lib/calendar-cache";
+import type { ApiEvent } from "./types";
 import "./Calendar.css";
 
-// ----------------------------------------
-// TYPES
-// ----------------------------------------
-
-// UI-level calendar view state
 type CalendarView = "week" | "timeline" | "month";
 
-// Map UI view → FullCalendar internal view
-// NOTE: timeline is currently a fallback (premium feature not used)
 const viewMap = {
   week: "timeGridWeek",
-  timeline: "timeGridDay", // placeholder until custom timeline
+  timeline: "timeGridDay", // TODO: Replace with the planned custom timeline view.
   month: "dayGridMonth",
 } as const;
 
-// AI strictness labels
 const STRICTNESS_LABELS: Record<number, string> = {
   1: "Flexible",
   2: "Moderate",
   3: "Strict",
 };
 
-// get today's date
-const today = new Date().toISOString().split("T")[0];
+function getEventCategory(event: ApiEvent) {
+  return event.category === "deep_work" ? "deep work" : event.category;
+}
 
-// ----------------------------------------
-// DATA TRANSFORMATION
-// Backend → FullCalendar format
-// ----------------------------------------
+function getEventClass(event: ApiEvent) {
+  const classes: string[] = [];
 
-/**
- * Convert API event structure into FullCalendar-compatible format
- * - Keeps raw API data in extendedProps for flexible rendering
- */
+  switch (event.category) {
+    case "deep_work":
+    case "study":
+      classes.push("fc-event-study");
+      break;
+    case "lecture":
+    case "meeting":
+      classes.push("fc-event-class");
+      break;
+    case "deadline":
+    case "exam":
+      classes.push("fc-event-deadline");
+      break;
+    default:
+      classes.push("fc-event-muted");
+  }
+
+  if (event.priority === "high") classes.push("fc-event-priority-high");
+  if (event.conflict?.hasConflict) classes.push("fc-conflict-bg");
+  return classes;
+}
+
 function mapApiEventsToCalendarEvents(events: ApiEvent[]): EventInput[] {
   return events.map((event) => ({
     id: event.id,
     title: event.title,
     start: event.start,
     end: event.end,
-
     className: getEventClass(event),
-
-    // Extended metadata (used in custom rendering / logic)
     extendedProps: {
       category: getEventCategory(event),
       status: event.status,
@@ -74,414 +79,280 @@ function mapApiEventsToCalendarEvents(events: ApiEvent[]): EventInput[] {
   }));
 }
 
-// function to map deep_work to deep work
-function getEventCategory(event: ApiEvent) {
-  var category = "";
-
-  switch (event.category) {
-    case "deep_work":
-      category = "deep work";
-      break;
-
-    default:
-      category = event.category;
-  }
-
-  return category;
-}
-
-// function to map category to tailwind class
-function getEventClass(event: ApiEvent) {
-  const classes: string[] = [];
-
-  // ----------------------------------------
-  // CATEGORY → BASE STYLE
-  // ----------------------------------------
-  switch (event.category) {
-    case "deep_work":
-      classes.push("fc-event-primary");
-      break;
-
-    case "lecture":
-      classes.push("fc-event-tertiary");
-      break;
-
-    case "deadline":
-      classes.push("fc-event-error");
-      break;
-
-    case "study":
-      classes.push("fc-event-primary");
-      break;
-
-    case "meeting":
-      classes.push("fc-event-tertiary");
-      break;
-
-    case "exam":
-      classes.push("fc-event-error");
-      break;
-
-    case "personal":
-    case "break":
-    case "admin":
-      classes.push("fc-event-secondary-muted");
-      break;
-
-    default:
-      classes.push("fc-event-secondary-muted");
-  }
-
-  // ----------------------------------------
-  // PRIORITY → STRONGER VISUAL
-  // ----------------------------------------
-  if (event.priority === "high") {
-    classes.push("fc-event-primary-solid");
-  }
-
-  // ----------------------------------------
-  // CONFLICT → OVERLAY WARNING
-  // ----------------------------------------
-  if (event.conflict?.hasConflict) {
-    classes.push("fc-conflict-bg");
-  }
-
-  return classes;
-}
-
-// ----------------------------------------
-// MAIN COMPONENT
-// ----------------------------------------
-
 export default function Calendar() {
-  // ----------------------------------------
-  // STATE: Backend data
-  // ----------------------------------------
-
+  const { user } = useAuth();
   const [events, setEvents] = useState<ApiEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // aiStrictness slider control
   const [aiStrictness, setAIStrictness] = useState(3);
-
-  // ----------------------------------------
-  // STATE: UI control (view switching)
-  // ----------------------------------------
-
-  const [view, setView] = useState<CalendarView>("week");
-  // UI state for header title shown above the calendar
+  const [view, setView] = useState<CalendarView>("month");
   const [calendarTitle, setCalendarTitle] = useState("");
-
-  // Ref to access FullCalendar instance (imperative API)
+  const [isPlanningPanelOpen, setIsPlanningPanelOpen] = useState(false);
   const calendarRef = useRef<FullCalendar | null>(null);
 
-  // ----------------------------------------
-  // EFFECT: Fetch events from FastAPI
-  // ----------------------------------------
+  const loadEvents = useCallback(
+    async (forceReload = false) => {
+      if (!user) {
+        setEvents([]);
+        setLoading(false);
+        return;
+      }
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        setLoading(true);
+      const cached = getCachedCalendarEvents(user.uid);
+      const shouldReload = forceReload || shouldReloadCalendarCache(user.uid);
+      if (cached) setEvents(cached);
+
+      if (!shouldReload) {
         setError(null);
+        setLoading(false);
+        return;
+      }
 
-        const response = await fetch("/api/events");
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch events: ${response.status}`);
-        }
+      try {
+        setLoading(!cached);
+        setError(null);
+        const response = await apiFetch("/api/events");
+        if (!response.ok) throw new Error(`Failed to fetch events: ${response.status}`);
 
         const data: ApiEvent[] = await response.json();
+        setCachedCalendarEvents(user.uid, data);
         setEvents(data);
       } catch (err) {
         console.error("Error fetching events:", err);
-        setError("Failed to load calendar events.");
+        if (!cached) setError("Failed to load calendar events.");
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchEvents();
-  }, []);
-
-  // ----------------------------------------
-  // EFFECT: Sync React state → FullCalendar view
-  // ----------------------------------------
+    },
+    [user],
+  );
 
   useEffect(() => {
-    if (calendarRef.current) {
-      // Imperative API call to switch view dynamically
-      calendarRef.current.getApi().changeView(viewMap[view]);
-    }
+    void loadEvents();
+  }, [loadEvents]);
+
+  useEffect(() => {
+    if (!user) return;
+    const handleCacheUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId: string }>).detail;
+      if (detail?.userId !== user.uid) return;
+      const cached = getCachedCalendarEvents(user.uid);
+      if (cached) setEvents(cached);
+    };
+
+    window.addEventListener(CALENDAR_CACHE_UPDATED, handleCacheUpdate);
+    return () => window.removeEventListener(CALENDAR_CACHE_UPDATED, handleCacheUpdate);
+  }, [user]);
+
+  useEffect(() => {
+    calendarRef.current?.getApi().changeView(viewMap[view]);
   }, [view]);
 
-  // prev next button
-  const handlePrev = () => {
-    if (calendarRef.current) {
-      calendarRef.current.getApi().prev();
-    }
-  };
+  useEffect(() => {
+    if (!isPlanningPanelOpen) return;
 
-  const handleNext = () => {
-    if (calendarRef.current) {
-      calendarRef.current.getApi().next();
-    }
-  };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsPlanningPanelOpen(false);
+    };
 
-  // Sync FullCalendar's active title into React state
-  const handleDatesSet = (arg: DatesSetArg) => {
-    setCalendarTitle(arg.view.title);
-  };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isPlanningPanelOpen]);
 
-  // Transform events for FullCalendar
+  const handleDatesSet = (arg: DatesSetArg) => setCalendarTitle(arg.view.title);
+  const handlePrev = () => calendarRef.current?.getApi().prev();
+  const handleNext = () => calendarRef.current?.getApi().next();
+  const handleToday = () => calendarRef.current?.getApi().today();
+
   const calendarEvents = mapApiEventsToCalendarEvents(events);
 
-  // ----------------------------------------
-  // UI: Loading & Error states
-  // ----------------------------------------
-
-  if (loading) {
-    return <div className="p-6">Loading calendar...</div>;
-  }
-
-  if (error) {
-    return <div className="p-6 text-error">{error}</div>;
-  }
-
-  // ----------------------------------------
-  // RENDER
-  // ----------------------------------------
-
   return (
-    <main className="min-h-screen max-w-6xl mx-auto px-6 py-10 md:px-8">
-      {/* HEADER */}
-      <header className="mb-6 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-        {/* Title + Status */}
-        <div>
-          <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">
-            Focus Timeline
-          </h2>
-
-          {/* External system indicators */}
-          <div className="mt-4 flex items-center gap-3">
-            {/* Google Calendar Sync */}
-            <div className="flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1.5">
-              <span
-                className="material-symbols-outlined text-sm text-primary"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                sync
-              </span>
-              <span className="text-xs font-semibold text-on-surface-variant">
-                Google Calendar Connected
-              </span>
-            </div>
-
-            {/* AI Planner Status */}
-            <div className="flex items-center gap-2 rounded-full border border-outline-variant/10 bg-tertiary-container/30 px-3 py-1.5">
-              <span className="material-symbols-outlined text-sm text-tertiary">
-                auto_awesome
-              </span>
-              <span className="text-xs font-semibold text-on-tertiary-container text-opacity-80">
-                AI Rebalancer Ready
-              </span>
-            </div>
+    <div className="dashboard-page mx-auto max-w-7xl">
+      <header className="dashboard-page-header desk-enter border-b border-border pb-4 md:pb-5">
+        <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">Semester view</p>
+        <div className="mt-2 flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
+          <div>
+            <h1 className="font-heading text-3xl font-extrabold tracking-tight md:text-4xl">Study calendar</h1>
+            <p className="mt-1 text-sm text-muted-foreground md:text-base">Protect the blocks that move an assignment forward.</p>
           </div>
-        </div>
-
-        {/* VIEW SWITCHER + ACTION */}
-        <div className="flex items-center gap-3">
-          {/* View Switcher */}
-          <div className="flex rounded-xl border border-outline-variant/10 bg-surface-container-low p-1">
-            {(["week", "timeline", "month"] as CalendarView[]).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition-colors
-                  ${
-                    view === v
-                      ? "border border-outline-variant/10 bg-surface-container-lowest text-primary shadow-sm"
-                      : "text-on-surface-variant hover:text-primary"
-                  }`}
-              >
-                {v[0].toUpperCase() + v.slice(1)}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg border border-control-border bg-field p-1">
+              {(["month", "week", "timeline"] as CalendarView[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  aria-pressed={view === item}
+                  onClick={() => setView(item)}
+                  className={`rounded-md px-3 py-2 text-xs font-bold transition-colors ${view === item ? "bg-inverse-surface text-inverse-foreground" : "text-muted-foreground hover:bg-paper hover:text-foreground"}`}
+                >
+                  {item === "timeline" ? "Timeline" : item[0].toUpperCase() + item.slice(1)}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              aria-controls="calendar-planning-drawer"
+              aria-expanded={isPlanningPanelOpen}
+              onClick={() => setIsPlanningPanelOpen(true)}
+              className="calendar-planning-trigger items-center gap-2 rounded-lg border border-control-border bg-paper px-3 py-2.5 text-xs font-bold text-foreground transition-colors hover:bg-field"
+            >
+              <span className="material-symbols-outlined text-base text-primary">tune</span>
+              Planning aids
+            </button>
+            {/* TODO: Connect this control to the workload-rebalancing API. */}
+            <button type="button" disabled className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-control-border bg-disabled px-3 py-2.5 text-xs font-bold text-disabled-foreground">
+              <span className="material-symbols-outlined text-base">auto_awesome</span>
+              Rebalance planned
+            </button>
           </div>
-
-          {/* AI Rebalancer Button */}
-          <button className="group flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary/10 transition-transform active:scale-95">
-            <span className="material-symbols-outlined transition-transform duration-500 group-hover:rotate-180">
-              auto_awesome
-            </span>
-            Workload Rebalancer
-          </button>
         </div>
       </header>
 
-      {/* MAIN GRID */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* CALENDAR SECTION */}
-        <section className="col-span-12 space-y-6 xl:col-span-9">
-          <div className="overflow-hidden rounded-2xl border border-outline-variant/10 bg-surface-container-lowest shadow-sm">
-            {/* Calendar Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/10 p-6 md:p-8">
-              <h3 className="font-headline text-xl font-bold text-on-surface">
-                {calendarTitle}
-              </h3>
-              <div className="flex rounded-xl border border-outline-variant/10 bg-surface-container-low p-1">
-                <button
-                  onClick={handlePrev}
-                  className="rounded-lg px-3 py-2 text-sm font-bold text-on-surface-variant hover:text-primary"
-                >
-                  Prev
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="rounded-lg px-3 py-2 text-sm font-bold text-on-surface-variant hover:text-primary"
-                >
-                  Next
-                </button>
+      {loading ? (
+        <div className="dashboard-page-scroll pt-5">
+          <CalendarState eyebrow="Preparing your study map" title="Loading calendar events..." />
+        </div>
+      ) : error ? (
+        <div className="dashboard-page-scroll pt-5">
+          <CalendarState eyebrow="Calendar unavailable" title={error} isError />
+        </div>
+      ) : (
+        <div className="calendar-layout desk-enter min-h-0 flex-1 gap-4 pt-4 [animation-delay:100ms]">
+          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-paper">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 md:px-5">
+              <div>
+                <p className="schedule-label text-[9px] font-bold uppercase text-muted-foreground">Schedule</p>
+                <h2 className="mt-0.5 font-heading text-xl font-extrabold md:text-2xl">{calendarTitle}</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleToday} className="rounded-md px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:bg-surface-container-low hover:text-foreground">Today</button>
+                <div className="flex rounded-lg border border-control-border bg-field p-1">
+                  <button type="button" onClick={handlePrev} aria-label="Previous period" className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-paper hover:text-foreground"><span className="material-symbols-outlined text-base">arrow_back</span></button>
+                  <button type="button" onClick={handleNext} aria-label="Next period" className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-paper hover:text-foreground"><span className="material-symbols-outlined text-base">arrow_forward</span></button>
+                </div>
               </div>
             </div>
-
-            {/* CALENDAR */}
-            <div className="calendar-shell p-4 md:p-6">
+            <div className="calendar-shell min-h-0 flex-1 overflow-hidden p-2 md:p-3">
               <FullCalendar
                 ref={calendarRef}
-                // Plugins define available views
                 plugins={[timeGridPlugin, interactionPlugin, dayGridPlugin]}
-                // Initial view only applies once (dynamic changes handled via ref)
-                initialView={viewMap[view]}
-                initialDate={today}
-                headerToolbar={{
-                  left: "",
-                  center: "",
-                  right: "",
-                }}
-                dayHeaderFormat={{ weekday: "short", day: "numeric" }}
+                initialView={viewMap.month}
+                initialDate={new Date()}
+                headerToolbar={{ left: "", center: "", right: "" }}
+                dayHeaderFormat={{ weekday: "short" }}
                 slotMinTime="06:00:00"
                 slotMaxTime="24:00:00"
+                scrollTime="08:00:00"
                 allDaySlot={false}
-                nowIndicator={true}
+                nowIndicator
                 editable={false}
-                selectable={true}
-                height={600}
-                // Core data input
+                selectable
+                height="100%"
+                fixedWeekCount={false}
+                showNonCurrentDates={false}
+                dayMaxEvents={3}
                 events={calendarEvents}
-                /**
-                 * Custom event rendering
-                 * Uses extendedProps for richer display
-                 */
                 eventContent={(arg) => {
-                  const category = arg.event.extendedProps.category as
-                    | string
+                  const conflict = arg.event.extendedProps.conflict as
+                    | { hasConflict?: boolean }
                     | undefined;
 
                   return (
-                    <div className="h-full rounded-xl p-2">
-                      {category && (
-                        <p className="text-[10px] font-bold uppercase opacity-80">
-                          {category}
-                        </p>
+                    <div className="calendar-event-content">
+                      <p>{arg.event.title}</p>
+                      {conflict?.hasConflict && (
+                        <span className="calendar-conflict-mark" aria-label="Scheduling conflict">!</span>
                       )}
-                      <p className="mt-1 text-xs font-bold">
-                        {arg.event.title}
-                      </p>
                     </div>
                   );
                 }}
                 datesSet={handleDatesSet}
               />
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* SIDE PANEL (unchanged structure) */}
-        <section className="col-span-12 space-y-8 xl:col-span-3">
-          <div className="rounded-xl border border-outline-variant/10 bg-surface/80 p-6 shadow-sm backdrop-blur-[20px] md:p-8">
-            <div className="mb-4 flex items-center gap-2">
-              <span
-                className="material-symbols-outlined text-error"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                warning
-              </span>
-              <h4 className="font-headline font-bold text-on-surface">
-                Conflict Detected
-              </h4>
-            </div>
-            <p className="mb-6 text-sm leading-relaxed text-on-surface-variant">
-              Your "Macro Econ" study block overlaps with "Quant Theory" Seminar
-              on Tuesday.
-            </p>
-            <div className="space-y-3">
-              <button className="flex w-full items-center justify-between rounded-xl bg-surface-container-high px-6 py-3 text-xs font-bold text-on-surface transition-colors hover:bg-surface-container-highest">
-                Shift study to 6:00 PM
-                <span className="material-symbols-outlined text-sm">
-                  arrow_forward
-                </span>
-              </button>
-              <button className="flex w-full items-center justify-between rounded-xl border border-outline-variant/20 px-6 py-3 text-xs font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low">
-                Squeeze to 45 mins
-                <span className="material-symbols-outlined text-sm">
-                  compress
-                </span>
-              </button>
-            </div>
-          </div>
-          <div className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
-            <h4 className="mb-6 font-headline font-bold text-on-surface">
-              Rebalancer Settings
-            </h4>
-            <div className="space-y-6">
+          <aside className="calendar-desktop-rail min-h-0" aria-label="Calendar planning aids">
+            <PlanningPanel aiStrictness={aiStrictness} onStrictnessChange={setAIStrictness} />
+          </aside>
+        </div>
+      )}
+
+      {isPlanningPanelOpen && (
+        <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setIsPlanningPanelOpen(false);
+        }}>
+          <aside id="calendar-planning-drawer" role="dialog" aria-modal="true" aria-labelledby="calendar-planning-title" className="ml-auto flex h-dvh w-full max-w-sm flex-col border-l border-control-border bg-paper">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                    AI Strictness
-                  </label>
-                  <span className="text-xs font-bold text-primary">
-                    {STRICTNESS_LABELS[aiStrictness] || "Unknown"}
-                  </span>
-                </div>
-
-                <Stepper
-                  value={aiStrictness}
-                  onChange={setAIStrictness}
-                  min={1}
-                  max={3}
-                />
+                <p className="schedule-label text-[9px] font-bold uppercase text-muted-foreground">Calendar tools</p>
+                <h2 id="calendar-planning-title" className="mt-1 font-heading text-xl font-extrabold">Planning aids</h2>
               </div>
-
-              <div className="space-y-3">
-                <label className="group flex cursor-pointer items-center gap-3">
-                  <div className="flex h-5 w-5 items-center justify-center rounded border-2 border-outline-variant/10 transition-colors group-hover:border-primary">
-                    <div className="h-2.5 w-2.5 rounded-sm bg-primary" />
-                  </div>
-                  <span className="text-xs font-semibold text-on-surface">
-                    Prioritize Early Mornings
-                  </span>
-                </label>
-                <label className="group flex cursor-pointer items-center gap-3">
-                  <div className="flex h-5 w-5 items-center justify-center rounded border-2 border-outline-variant/10 transition-colors group-hover:border-primary" />
-                  <span className="text-xs font-semibold text-on-surface">
-                    Keep Weekends Empty
-                  </span>
-                </label>
-                <label className="group flex cursor-pointer items-center gap-3">
-                  <div className="flex h-5 w-5 items-center justify-center rounded border-2 border-outline-variant/10 transition-colors group-hover:border-primary">
-                    <div className="h-2.5 w-2.5 rounded-sm bg-primary" />
-                  </div>
-                  <span className="text-xs font-semibold text-on-surface">
-                    Avoid Back-to-Back Deep Work
-                  </span>
-                </label>
-              </div>
+              <button type="button" autoFocus onClick={() => setIsPlanningPanelOpen(false)} aria-label="Close planning aids" className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-container-low hover:text-foreground">
+                <span className="material-symbols-outlined">close</span>
+              </button>
             </div>
-          </div>cd f
-        </section>
-      </div>
-    </main>
+            <div className="calendar-planning-drawer-scroll dashboard-page-scroll p-4">
+              <PlanningPanel aiStrictness={aiStrictness} onStrictnessChange={setAIStrictness} />
+            </div>
+          </aside>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlanningPanel({ aiStrictness, onStrictnessChange }: { aiStrictness: number; onStrictnessChange: (value: number) => void }) {
+  return (
+    <div className="space-y-3">
+      <section className="rounded-xl border border-border bg-paper p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-primary">calendar_add_on</span>
+            <h3 className="font-heading text-sm font-extrabold">Google Calendar</h3>
+          </div>
+          <span className="schedule-label text-[9px] font-bold uppercase text-muted-foreground">Planned</span>
+        </div>
+        {/* TODO: Connect Google Calendar OAuth and synchronization status. */}
+        <button type="button" disabled className="mt-3 w-full cursor-not-allowed rounded-md border border-control-border bg-disabled px-3 py-2 text-xs font-bold text-disabled-foreground">Connect calendar</button>
+      </section>
+
+      <section className="rounded-xl border border-border bg-paper p-4">
+        <p className="schedule-label text-[9px] font-bold uppercase text-muted-foreground">Calendar key</p>
+        <div className="mt-3 space-y-2.5 text-xs">
+          <div className="flex items-center gap-3"><span className="h-3 w-1 rounded-full bg-event-study-foreground" />Deep work and study</div>
+          <div className="flex items-center gap-3"><span className="h-3 w-1 rounded-full bg-event-class-foreground" />Classes and meetings</div>
+          <div className="flex items-center gap-3"><span className="h-3 w-1 rounded-full bg-event-deadline-foreground" />Deadlines and exams</div>
+        </div>
+      </section>
+
+      <section className="calendar-inverse-panel rounded-xl border border-control-border bg-inverse-surface p-4 text-inverse-foreground">
+        <p className="schedule-label text-[9px] font-bold uppercase text-inverse-muted">Planning aid</p>
+        <h3 className="mt-2 font-heading text-base font-extrabold text-inverse-foreground">Workload rebalancer</h3>
+        {/* TODO: Connect preferences and apply actions to the workload-rebalancing backend. */}
+        <div className="mt-4 border-t border-inverse-muted/30 pt-4">
+          <div className="mb-2 flex items-center justify-between"><label className="schedule-label text-[9px] font-bold uppercase text-inverse-muted">Plan rigidity</label><span className="text-xs font-bold text-inverse-foreground">{STRICTNESS_LABELS[aiStrictness]}</span></div>
+          <Stepper value={aiStrictness} onChange={onStrictnessChange} min={1} max={3} label="Plan rigidity" />
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-paper p-4">
+        <div className="flex items-center gap-2"><span className="material-symbols-outlined text-base text-destructive">warning</span><h3 className="font-heading text-sm font-extrabold">Potential overlap</h3></div>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Macro Econ study time meets Quant Theory seminar on Tuesday.</p>
+        {/* TODO: Connect conflict actions to event conflict detection and update endpoints. */}
+        <div className="mt-3 grid gap-2">
+          <button type="button" disabled className="cursor-not-allowed rounded-md border border-control-border bg-disabled px-3 py-2 text-left text-xs font-bold text-disabled-foreground">Shift study to 6:00 PM</button>
+          <button type="button" disabled className="cursor-not-allowed rounded-md border border-control-border bg-disabled px-3 py-2 text-left text-xs font-bold text-disabled-foreground">Shorten to 45 minutes</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CalendarState({ eyebrow, title, isError = false }: { eyebrow: string; title: string; isError?: boolean }) {
+  return (
+    <section className={`rounded-xl border bg-paper p-8 ${isError ? "border-destructive/25 text-destructive" : "border-border"}`}>
+      <p className="schedule-label text-[11px] font-bold uppercase text-muted-foreground">{eyebrow}</p>
+      <p className="mt-3 font-heading text-2xl font-extrabold">{title}</p>
+    </section>
   );
 }

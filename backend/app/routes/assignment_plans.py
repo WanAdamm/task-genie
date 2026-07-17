@@ -1,0 +1,385 @@
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends, HTTPException
+from firebase_admin import firestore
+
+from models.assignment_plan import (
+    AssignmentPlanCreate,
+    ClarificationAnswersCreate,
+    DraftUpdate,
+    GeneratedDraft,
+    ScheduleRequest,
+)
+from models.setting import AvailabilityConfig
+from services.auth import get_current_user
+from services.firestore import (
+    get_firestore_client,
+    get_user_assignment_plans_collection,
+    get_user_events_collection,
+    getUserSettings,
+)
+from services.llm_planner import (
+    generate_clarification_questions,
+    generate_subtask_draft,
+)
+from services.scheduler import BusyInterval, ScheduleResult, build_schedule
+
+
+router = APIRouter()
+
+
+def _serialize(value):
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _serialize(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_serialize(item) for item in value]
+    return value
+
+
+def _plan_or_404(user_id: str, plan_id: str):
+    ref = get_user_assignment_plans_collection(user_id).document(plan_id)
+    snapshot = ref.get()
+    if not snapshot.exists:
+        raise HTTPException(status_code=404, detail="Assignment plan not found")
+    return ref, snapshot.to_dict()
+
+
+def _availability_and_strategy(user_id: str):
+    snapshot = getUserSettings(user_id).get()
+    data = snapshot.to_dict() if snapshot.exists else {}
+    availability = AvailabilityConfig.model_validate(data.get("availability", {}))
+    strategy = data.get("two_way", {}).get("taskDifficultyStrategy", "balanced")
+    has_work_hours = any(
+        getattr(availability.weekly, weekday)
+        for weekday in availability.weekly.model_fields
+    )
+    return availability, strategy, has_work_hours
+
+
+def _busy_intervals(user_id: str, timezone_name: str) -> list[BusyInterval]:
+    user_timezone = ZoneInfo(timezone_name)
+    intervals: list[BusyInterval] = []
+    for document in get_user_events_collection(user_id).stream():
+        data = document.to_dict()
+        if data.get("status") in {"cancelled", "missed"} or data.get("category") == "deadline":
+            continue
+        start = data.get("startTs") or data.get("start")
+        end = data.get("endTs") or data.get("end")
+        if isinstance(start, str):
+            start = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        if isinstance(end, str):
+            end = datetime.fromisoformat(end.replace("Z", "+00:00"))
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            continue
+        # Older events were saved without offsets; interpret them in the user's zone
+        # instead of allowing the server's local timezone to change their meaning.
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=user_timezone)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=user_timezone)
+        intervals.append(BusyInterval(start, end))
+    return intervals
+
+
+def _schedule_response(result: ScheduleResult):
+    proposed_events = [
+        {
+            "subtaskId": block.subtask_id,
+            "title": block.title,
+            "category": block.category,
+            "priority": block.priority,
+            "start": block.start.isoformat(),
+            "end": block.end.isoformat(),
+            "estimatedMinutes": block.estimated_minutes,
+        }
+        for block in result.blocks
+    ]
+    if result.feasible:
+        return {
+            "status": "ready",
+            "requiredMinutes": result.required_minutes,
+            "availableMinutes": result.available_minutes,
+            "proposedEvents": proposed_events,
+        }
+    return {
+        "status": "infeasible",
+        "requiredMinutes": result.required_minutes,
+        "availableMinutes": result.available_minutes,
+        "unscheduledMinutes": result.unscheduled_minutes,
+        "proposedEvents": proposed_events,
+        "options": [
+            {
+                "id": "outside_work_hours",
+                "label": "Use extended hours",
+                "description": "Allow scheduling between 06:00 and 23:00.",
+            },
+            {
+                "id": "increase_daily_limit",
+                "label": "Add two hours per day",
+                "description": "Temporarily increase daily study capacity by 120 minutes.",
+            },
+            {
+                "id": "leave_unscheduled",
+                "label": "Schedule what fits",
+                "description": "Create the feasible blocks and leave the remaining work unscheduled.",
+            },
+            {
+                "id": "edit_draft",
+                "label": "Revise estimates",
+                "description": "Return to the draft and change scope or effort estimates.",
+            },
+        ],
+    }
+
+
+def _run_schedule(user_id: str, data: dict, request: ScheduleRequest):
+    if request.revision != data.get("revision"):
+        raise HTTPException(status_code=409, detail="The plan changed. Reload the latest draft.")
+    availability, strategy, has_work_hours = _availability_and_strategy(user_id)
+    if not has_work_hours:
+        return None, {
+            "status": "needs_availability",
+            "message": "Set at least one work-hour window before scheduling.",
+        }
+    if data.get("status") not in {"draft", "infeasible"} or "draft" not in data:
+        raise HTTPException(status_code=409, detail="The plan does not have a confirmed draft yet.")
+    assignment = AssignmentPlanCreate.model_validate(data["assignment"])
+    draft = GeneratedDraft.model_validate(data["draft"])
+    result = build_schedule(
+        subtasks=draft.subtasks,
+        now=datetime.now(timezone.utc),
+        deadline=assignment.dueDate,
+        availability=availability,
+        busy_intervals=_busy_intervals(user_id, availability.timezone),
+        strategy=strategy,
+        policy=request.policy,
+    )
+    return result, _schedule_response(result)
+
+
+@router.post("")
+def create_assignment_plan(
+    payload: AssignmentPlanCreate,
+    current_user=Depends(get_current_user),
+):
+    user_id = current_user["uid"]
+    if payload.dueDate.tzinfo is None:
+        raise HTTPException(status_code=400, detail="dueDate must include a timezone offset")
+    if payload.dueDate <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="dueDate must be in the future")
+
+    questions = generate_clarification_questions(payload)
+    plan_ref = get_user_assignment_plans_collection(user_id).document()
+    now = datetime.now(timezone.utc)
+    plan_data = {
+        "assignment": payload.model_dump(mode="json"),
+        "questions": [question.model_dump() for question in questions],
+        "answers": [],
+        "revision": 1,
+        "status": "awaiting_answers" if questions else "draft",
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    if not questions:
+        plan_data["draft"] = generate_subtask_draft(payload, []).model_dump()
+    plan_ref.set(plan_data)
+    return {
+        "planId": plan_ref.id,
+        **_serialize(plan_data),
+    }
+
+
+@router.post("/{plan_id}/answers")
+def answer_questions(
+    plan_id: str,
+    payload: ClarificationAnswersCreate,
+    current_user=Depends(get_current_user),
+):
+    user_id = current_user["uid"]
+    ref, data = _plan_or_404(user_id, plan_id)
+    if data.get("status") != "awaiting_answers":
+        raise HTTPException(status_code=409, detail="This plan is not awaiting answers")
+
+    questions = {item["id"]: item for item in data.get("questions", [])}
+    submitted_ids = [answer.questionId for answer in payload.answers]
+    if len(submitted_ids) != len(set(submitted_ids)) or set(submitted_ids) != set(questions):
+        raise HTTPException(status_code=400, detail="Answer each clarification question exactly once")
+    answers = []
+    for answer in payload.answers:
+        question = questions.get(answer.questionId)
+        if question is None:
+            raise HTTPException(status_code=400, detail=f"Unknown question: {answer.questionId}")
+        answers.append({
+            **answer.model_dump(),
+            "question": question["question"],
+        })
+    assignment = AssignmentPlanCreate.model_validate(data["assignment"])
+    draft = generate_subtask_draft(assignment, answers)
+    update = {
+        "answers": answers,
+        "draft": draft.model_dump(),
+        "status": "draft",
+        "updatedAt": datetime.now(timezone.utc),
+    }
+    ref.update(update)
+    return {"planId": plan_id, "revision": data["revision"], **_serialize(update)}
+
+
+@router.put("/{plan_id}/draft")
+def update_draft(
+    plan_id: str,
+    payload: DraftUpdate,
+    current_user=Depends(get_current_user),
+):
+    user_id = current_user["uid"]
+    ref, data = _plan_or_404(user_id, plan_id)
+    if payload.revision != data.get("revision"):
+        raise HTTPException(status_code=409, detail="The plan changed. Reload the latest draft.")
+    next_revision = payload.revision + 1
+    update = {
+        "draft": payload.draft.model_dump(),
+        "revision": next_revision,
+        "status": "draft",
+        "updatedAt": datetime.now(timezone.utc),
+    }
+    ref.update(update)
+    return {"planId": plan_id, **_serialize(update)}
+
+
+@router.post("/{plan_id}/preview")
+def preview_schedule(
+    plan_id: str,
+    payload: ScheduleRequest,
+    current_user=Depends(get_current_user),
+):
+    user_id = current_user["uid"]
+    _, data = _plan_or_404(user_id, plan_id)
+    _, response = _run_schedule(user_id, data, payload)
+    return response
+
+
+@router.post("/{plan_id}/confirm")
+def confirm_schedule(
+    plan_id: str,
+    payload: ScheduleRequest,
+    current_user=Depends(get_current_user),
+):
+    user_id = current_user["uid"]
+    plan_ref, data = _plan_or_404(user_id, plan_id)
+    if data.get("status") == "scheduled":
+        return {"status": "scheduled", "events": data.get("events", [])}
+
+    # Availability is intentionally re-read here because the calendar may have
+    # changed after preview. Preview is advisory; confirmation is authoritative.
+    result, response = _run_schedule(user_id, data, payload)
+    if result is None:
+        return response
+    if not result.feasible and not payload.policy.leaveUnscheduled:
+        return response
+
+    assignment = AssignmentPlanCreate.model_validate(data["assignment"])
+    if len(result.blocks) > 450:
+        raise HTTPException(
+            status_code=400,
+            detail="The plan creates too many calendar blocks. Increase block lengths or reduce scope.",
+        )
+
+    now = datetime.now(timezone.utc)
+    events_collection = get_user_events_collection(user_id)
+    availability, _, _ = _availability_and_strategy(user_id)
+    calendar_timezone = ZoneInfo(availability.timezone)
+    serialized_events = []
+
+    event_writes = []
+    for index, block in enumerate(result.blocks):
+        # Deterministic IDs make a retried confirmation overwrite the same blocks
+        # rather than producing duplicates after a network or transaction retry.
+        event_ref = events_collection.document(f"{plan_id}_block_{index:03d}")
+        local_start = block.start.astimezone(calendar_timezone)
+        iso_year, iso_week, _ = local_start.isocalendar()
+        event_data = {
+            "title": f"[{assignment.courseName}] {block.title}",
+            "category": block.category,
+            "calendarId": "primary",
+            "start": block.start.isoformat(),
+            "end": block.end.isoformat(),
+            "startTs": block.start,
+            "endTs": block.end,
+            "dateKey": local_start.strftime("%Y-%m-%d"),
+            "yearMonth": local_start.strftime("%Y-%m"),
+            "weekKey": f"{iso_year}-W{iso_week:02d}",
+            "status": "scheduled",
+            "priority": block.priority,
+            "source": "ai_generated",
+            "isLocked": False,
+            "assignmentId": plan_id,
+            "planId": plan_id,
+            "subtaskId": block.subtask_id,
+            "conflict": {"hasConflict": False, "reason": None},
+            "meta": {"estimatedMinutes": block.estimated_minutes, "actualMinutes": 0},
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        event_writes.append((event_ref, event_data))
+        serialized_events.append({"id": event_ref.id, **_serialize(event_data)})
+
+    deadline_ref = events_collection.document(f"{plan_id}_deadline")
+    deadline_end = assignment.dueDate + timedelta(minutes=15)
+    local_deadline = assignment.dueDate.astimezone(calendar_timezone)
+    iso_year, iso_week, _ = local_deadline.isocalendar()
+    deadline_data = {
+        "title": f"[{assignment.courseName}] Final submission deadline",
+        "category": "deadline",
+        "calendarId": "primary",
+        "start": assignment.dueDate.isoformat(),
+        "end": deadline_end.isoformat(),
+        "startTs": assignment.dueDate,
+        "endTs": deadline_end,
+        "dateKey": local_deadline.strftime("%Y-%m-%d"),
+        "yearMonth": local_deadline.strftime("%Y-%m"),
+        "weekKey": f"{iso_year}-W{iso_week:02d}",
+        "status": "scheduled",
+        "priority": "high",
+        "source": "ai_generated",
+        "isLocked": True,
+        "assignmentId": plan_id,
+        "planId": plan_id,
+        "subtaskId": None,
+        "conflict": {"hasConflict": False, "reason": None},
+        "meta": {"estimatedMinutes": 0, "actualMinutes": 0},
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    event_writes.append((deadline_ref, deadline_data))
+    serialized_events.append({"id": deadline_ref.id, **_serialize(deadline_data)})
+
+    transaction = get_firestore_client().transaction()
+
+    @firestore.transactional
+    def commit_schedule(current_transaction):
+        latest_snapshot = plan_ref.get(transaction=current_transaction)
+        latest = latest_snapshot.to_dict()
+        if latest.get("status") == "scheduled":
+            return latest.get("events", [])
+        if latest.get("revision") != payload.revision:
+            raise HTTPException(status_code=409, detail="The plan changed before confirmation.")
+        for event_ref, event_data in event_writes:
+            current_transaction.set(event_ref, event_data)
+        current_transaction.update(plan_ref, {
+            "status": "scheduled",
+            "events": serialized_events,
+            "policy": payload.policy.model_dump(),
+            "unscheduledMinutes": result.unscheduled_minutes,
+            "updatedAt": now,
+        })
+        return serialized_events
+
+    committed_events = commit_schedule(transaction)
+    return {
+        "status": "scheduled",
+        "events": _serialize(committed_events),
+        "unscheduledMinutes": result.unscheduled_minutes,
+    }

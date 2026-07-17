@@ -1,4 +1,6 @@
-import { NavLink, Link } from "react-router-dom";
+import { NavLink, Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/auth-context";
+import { useTheme } from "@/hooks/theme-context";
 
 type NavItem = {
   label: string;
@@ -16,16 +18,24 @@ const navItems = [
 
 const bottomItems: NavItem[] = [
   { label: "Help Center", icon: "help", to: "#" },
-  { label: "Sign Out", icon: "logout", to: "#" },
 ];
 
 export default function Sidebar() {
+  const { logOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await logOut();
+    navigate("/login", { replace: true });
+  };
+
   return (
-    <aside className="h-screen w-64 fixed left-0 top-0 bg-[#eaedff] border-r border-[#98b1f2]/15 flex-col py-8 px-4 z-40 hidden md:flex">
-      <div className="mb-10 px-2">
+    <aside className="sidebar-shell fixed left-0 top-0 z-40 hidden h-dvh w-64 flex-col overflow-y-auto overscroll-contain border-r border-sidebar-border bg-sidebar/95 px-4 py-7 backdrop-blur-xl md:flex">
+      <div className="mb-12 px-2">
         <div className="flex items-center gap-3">
           <Link to="/">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20 cursor-pointer hover:scale-105 transition">
+            <div className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-ambient transition hover:scale-105">
               <span
                 className="material-symbols-outlined"
                 style={{ fontVariationSettings: "'FILL' 1" }}
@@ -36,11 +46,11 @@ export default function Sidebar() {
           </Link>
 
           <div>
-            <h1 className="font-headline font-extrabold text-[#113069] text-xl tracking-tight leading-none">
+            <h1 className="font-heading font-extrabold text-foreground text-xl tracking-tight leading-none">
               TaskGenie
             </h1>
-            <p className="text-[10px] font-medium text-primary opacity-80 uppercase tracking-widest mt-1">
-              Academic Curator
+            <p className="schedule-label text-[9px] font-bold text-muted-foreground uppercase mt-1">
+              Study desk
             </p>
           </div>
         </div>
@@ -54,8 +64,8 @@ export default function Sidebar() {
             end={item.to === "/dashboard"}
             className={({ isActive }) =>
               isActive
-                ? "relative flex items-center gap-3 px-3 py-3 rounded-lg text-primary font-bold before:content-[''] before:absolute before:left-[-16px] before:w-1 before:h-6 before:bg-primary before:rounded-full bg-[#cdd9ff]/40 text-sm"
-                : "flex items-center gap-3 px-3 py-3 rounded-lg text-[#113069]/70 hover:bg-[#cdd9ff] transition-colors font-medium text-sm group"
+                ? "relative flex items-center gap-3 rounded-lg bg-sidebar-accent px-3 py-3 text-sm font-bold text-sidebar-accent-foreground shadow-sm before:absolute before:left-[-16px] before:h-6 before:w-[3px] before:bg-destructive before:content-['']"
+                : "group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             }
           >
             {({ isActive }) => (
@@ -77,21 +87,40 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto space-y-1 pt-6 border-t border-primary/10">
+      <div className="mt-auto space-y-1 pt-6 border-t border-sidebar-border">
+        <button
+          onClick={toggleTheme}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        >
+          <span className="material-symbols-outlined">
+            {theme === "dark" ? "light_mode" : "dark_mode"}
+          </span>
+          {theme === "dark" ? "Light Mode" : "Dark Mode"}
+        </button>
+
         {bottomItems.map((item) => (
           <NavLink
             key={item.label}
             to={item.to}
             className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors text-sm ${
               item.label === "Sign Out"
-                ? "text-[#113069]/70 hover:text-red-500"
-                : "text-[#113069]/70 hover:text-primary"
+                ? "text-muted-foreground hover:text-destructive"
+                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             }`}
           >
             <span className="material-symbols-outlined">{item.icon}</span>
             {item.label}
           </NavLink>
         ))}
+
+        <button
+          onClick={handleSignOut}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+        >
+          <span className="material-symbols-outlined">logout</span>
+          Sign Out
+        </button>
       </div>
     </aside>
   );

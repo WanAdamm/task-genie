@@ -1,159 +1,88 @@
-import { useEffect } from "react";
+import { Link } from "react-router-dom";
+
+const steps = [
+  ["01", "Name the work", "Add the brief, course, and due date."],
+  ["02", "Set the pace", "Tell TaskGenie what a realistic week looks like."],
+  ["03", "Work the next block", "A clear study block lands in your calendar."],
+];
 
 export default function LandingPage() {
-  useEffect(() => {
-    const elements = document.querySelectorAll(".reveal-up");
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add(
-              "animate-[fadeUp_0.6s_ease-out_forwards]",
-            );
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.12 },
-    );
-
-    elements.forEach((el) => observer.observe(el));
-
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <main className="bg-[#faf8ff] pt-10">
-      {/* HERO */}
-      <section className="max-w-6xl mx-auto px-6 py-10 md:px-8 grid lg:grid-cols-2 gap-6 items-center">
-        <div className="space-y-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e2e7ff] rounded-full border border-outline-variant/10">
-            <span className="material-symbols-outlined text-sm text-primary">
-              auto_awesome
-            </span>
-            <span className="text-xs text-[#0050d4] font-bold tracking-wider">
-              AI-DRIVEN ACADEMIC EXCELLENCE
-            </span>
-          </div>
-
-          <h1 className="text-5xl lg:text-7xl text-[#113069] font-black leading-tight">
-            Master Your{" "}
-            <span className="text-[#0051d7] bg-gradient-to-br from-primary to-primary-dim bg-clip-text">
-              Deadlines
-            </span>{" "}
-            with AI
+    <main className="overflow-hidden">
+      <section className="mx-auto grid max-w-7xl items-stretch gap-8 px-6 py-12 md:px-10 lg:grid-cols-[1.05fr_.95fr] lg:py-20">
+        <div className="desk-enter flex flex-col justify-center py-6 lg:py-12">
+          <p className="schedule-label mb-7 text-[11px] font-bold uppercase text-muted-foreground">
+            A study planner for real semesters
+          </p>
+          <h1 className="max-w-3xl font-heading text-5xl font-extrabold leading-[0.96] text-foreground md:text-7xl">
+            Make room for the work that matters.
           </h1>
-
-          <p className="text-xl max-w-lg">
-            Upload your prompt, sync with Google Calendar, and reclaim your
-            time.
+          <p className="mt-7 max-w-xl text-lg leading-8 text-muted-foreground">
+            TaskGenie turns one assignment brief into a sequence of study blocks you can actually keep. Less rearranging. More starting.
           </p>
-
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button className="bg-primary text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2">
-              <span className="material-symbols-outlined">upload_file</span>
-              Upload Assignment
-            </button>
-
-            <button className="border border-outline-variant/20 px-6 py-3 rounded-xl font-bold flex items-center gap-2">
-              <span className="material-symbols-outlined">play_circle</span>
-              See Demo
-            </button>
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <Link to="/login" className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground shadow-ambient transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              Start planning <span className="material-symbols-outlined text-base">arrow_forward</span>
+            </Link>
+            <Link to="/dashboard" className="inline-flex items-center justify-center rounded-lg border border-border bg-paper/70 px-5 py-3.5 text-sm font-bold text-foreground transition-colors hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              Open the study desk
+            </Link>
           </div>
         </div>
 
-        <div className="relative">
-          <img
-            className="rounded-xl w-full border border-outline-variant/10"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCN4jwbw7W8UARPMlRNnuCM5rS-DoaVkqzIcqde5DiHXNU-ka3H_Nnj55dpNgpBmqIWziG5aorx74yZ3UXnvGB2MqawctgkC1uNv0TH-ikQi_Gul_f0XNs8yiXPRY2BFPxkmkarKnBCSQoc7IXJ0wIvX5vPE5ITBJ7nmm4qtz0gaQEWzPhd5aHS99GrWQNaYr3kaGJc9aSmBn5bJNa5vSohRFKWFqZc_rtV2VdAJaPeuuXnBP4nFRy8l9JprFIHrFAdQF3PG2MZWPM"
-          />
-        </div>
-      </section>
-
-      {/* FEATURES */}
-      <section className="bg-surface-container-low py-10">
-        <div className="max-w-6xl mx-auto px-6 md:px-8 space-y-8">
-          <div className="text-center">
-            <h2 className="mb-2 text-4xl font-bold">Architect Your Semester</h2>
-            <p className="max-w-2xl mx-auto">
-              Focus on the material while we handle the logistics.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="reveal-up opacity-0 translate-y-6 bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
-              <span className="material-symbols-outlined text-3xl text-primary">
-                schema
-              </span>
-              <h3 className="font-bold text-xl mt-4">AI Task Breakdown</h3>
-              <p className="text-sm mt-2">
-                Automatically break assignments into structured tasks.
-              </p>
+        <div className="desk-enter paper-panel relative min-h-[430px] overflow-hidden rounded-2xl border border-border p-5 [animation-delay:120ms] md:p-8">
+          <div className="absolute bottom-0 left-10 top-0 w-px bg-destructive/35" />
+          <div className="relative ml-6">
+            <div className="flex items-center justify-between border-b border-border pb-5">
+              <div>
+                <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">Thursday / study map</p>
+                <p className="mt-1 font-heading text-xl font-extrabold">Environmental ethics paper</p>
+              </div>
+              <span className="rounded-full bg-destructive px-3 py-1.5 schedule-label text-[10px] font-bold text-destructive-foreground">DUE FRI</span>
             </div>
-
-            <div className="reveal-up opacity-0 translate-y-6 bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
-              <span className="material-symbols-outlined text-3xl text-primary">
-                calendar_clock
-              </span>
-              <h3 className="font-bold text-xl mt-4">Timeline Generation</h3>
-              <p className="text-sm mt-2">
-                Smart scheduling based on workload and deadlines.
-              </p>
+            <div className="mt-7 space-y-4">
+              <div className="grid grid-cols-[58px_1fr] gap-4">
+                <span className="schedule-label pt-3 text-[10px] text-muted-foreground">16:00</span>
+                <div className="rounded-lg border-l-4 border-primary bg-primary/10 p-3">
+                  <p className="text-sm font-bold">Outline the argument</p>
+                  <p className="mt-1 text-xs text-muted-foreground">45 min · deep work</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-[58px_1fr] gap-4">
+                <span className="schedule-label pt-3 text-[10px] text-muted-foreground">17:00</span>
+                <div className="rounded-lg border-l-4 border-event-class-foreground bg-event-class p-3 text-event-class-foreground">
+                  <p className="text-sm font-bold">Read two counterarguments</p>
+                  <p className="mt-1 text-xs text-muted-foreground">30 min · research</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-[58px_1fr] gap-4">
+                <span className="schedule-label pt-3 text-[10px] text-muted-foreground">19:30</span>
+                <div className="rounded-lg border-l-4 border-destructive bg-destructive/10 p-3">
+                  <p className="text-sm font-bold">Draft opening paragraph</p>
+                  <p className="mt-1 text-xs text-muted-foreground">30 min · writing</p>
+                </div>
+              </div>
             </div>
-
-            <div className="reveal-up opacity-0 translate-y-6 bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/10 shadow-sm">
-              <span className="material-symbols-outlined text-3xl text-primary">
-                sync_alt
-              </span>
-              <h3 className="font-bold text-xl mt-4">Calendar Sync</h3>
-              <p className="text-sm mt-2">
-                Sync tasks directly to Google Calendar.
-              </p>
-            </div>
+            <p className="mt-8 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">Your plan should be a place to begin, not another thing to manage.</p>
           </div>
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section className="max-w-6xl mx-auto px-6 py-10 md:px-8">
-        <h2 className="text-4xl font-bold text-center mb-6">
-          The Three Steps to Clarity
-        </h2>
-
-        <div className="grid md:grid-cols-3 gap-6 text-center">
-          <div className="reveal-up opacity-0 translate-y-6 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
-            <div className="text-3xl font-black">01</div>
-            <h3 className="font-bold mt-4">Upload prompt</h3>
-            <p className="text-sm mt-2">Paste assignment or upload PDF.</p>
+      <section className="border-y border-border bg-paper/55">
+        <div className="mx-auto max-w-7xl px-6 py-16 md:px-10">
+          <div className="max-w-2xl">
+            <p className="schedule-label text-[11px] font-bold uppercase text-primary">The planning loop</p>
+            <h2 className="mt-3 font-heading text-4xl font-extrabold">From brief to next move.</h2>
           </div>
-
-          <div className="reveal-up opacity-0 translate-y-6 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
-            <div className="text-3xl font-black">02</div>
-            <h3 className="font-bold mt-4">Generate roadmap</h3>
-            <p className="text-sm mt-2">AI creates step-by-step plan.</p>
+          <div className="mt-10 grid gap-0 md:grid-cols-3 md:divide-x md:divide-border">
+            {steps.map(([number, title, description]) => (
+              <article key={number} className="border-b border-border py-7 md:border-b-0 md:px-8 md:first:pl-0 md:last:pr-0">
+                <p className="schedule-label text-xs font-bold text-destructive">{number}</p>
+                <h3 className="mt-5 font-heading text-xl font-extrabold">{title}</h3>
+                <p className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">{description}</p>
+              </article>
+            ))}
           </div>
-
-          <div className="reveal-up opacity-0 translate-y-6 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm md:p-8">
-            <div className="text-3xl font-black">03</div>
-            <h3 className="font-bold mt-4">Sync to calendar</h3>
-            <p className="text-sm mt-2">Push tasks into your schedule.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="max-w-6xl mx-auto px-6 pb-10 md:px-8">
-        <div className="bg-black text-white rounded-2xl p-6 md:p-8 text-center space-y-6 border border-outline-variant/10">
-          <h2 className="text-4xl font-black text-white ">
-            Join the Cognitive Elite
-          </h2>
-          <p className="max-w-xl mx-auto">
-            Start your AI-powered semester today.
-          </p>
-          <button className="bg-primary px-6 py-3 rounded-xl font-bold">
-            Get Started for Free
-          </button>
         </div>
       </section>
     </main>

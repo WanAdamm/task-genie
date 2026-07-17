@@ -94,6 +94,8 @@ class EventCreate(BaseModel):
 
     # Link to assignment (optional, for AI planner integration)
     assignmentId: Optional[str] = None
+    planId: Optional[str] = None
+    subtaskId: Optional[str] = None
 
     # Conflict info (defaults to no conflict)
     conflict: ConflictInfo = ConflictInfo()
@@ -133,6 +135,8 @@ class EventResponse(BaseModel):
     # Locking and linking
     isLocked: bool
     assignmentId: Optional[str] = None
+    planId: Optional[str] = None
+    subtaskId: Optional[str] = None
 
     # Nested structures
     conflict: ConflictInfo

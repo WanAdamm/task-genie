@@ -4,7 +4,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 
-def get_firestore_client():
+def initialize_firebase_admin():
     if not firebase_admin._apps:
         service_account_path = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 
@@ -16,6 +16,10 @@ def get_firestore_client():
 
         cred = credentials.Certificate(service_account_path)
         firebase_admin.initialize_app(cred)
+
+
+def get_firestore_client():
+    initialize_firebase_admin()
 
     return firestore.client()
 
@@ -33,6 +37,14 @@ def get_from_document(document):
 def get_events_collection():
     return get_from_collection("events")
 
+def get_user_events_collection(user_id):
+    db = get_firestore_client()
+    return db.collection("users").document(user_id).collection("events")
+
+def get_user_assignment_plans_collection(user_id):
+    db = get_firestore_client()
+    return db.collection("users").document(user_id).collection("assignmentPlans")
+
 # get appConfig from firestore
 def get_appConfig_collection():
     return get_from_collection("appConfig")
@@ -40,3 +52,7 @@ def get_appConfig_collection():
 # get settings from firestore
 def getSettings():
     return get_from_document("appConfig/settings")
+
+def getUserSettings(user_id):
+    db = get_firestore_client()
+    return db.collection("users").document(user_id).collection("appConfig").document("settings")
