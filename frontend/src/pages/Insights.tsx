@@ -19,7 +19,7 @@ export default function Insights() {
         </div>
       </header>
 
-      <div className="dashboard-page-scroll">
+      <div className="dashboard-page-scroll px-8">
         <div className="w-full space-y-8 pb-10 pt-6">
           {/* Top Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

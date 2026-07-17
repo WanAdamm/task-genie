@@ -421,7 +421,7 @@ export default function Settings() {
         </p>
       </header>
 
-      <div className="dashboard-page-scroll w-full max-w-4xl space-y-8 pb-8 pt-6">
+      <div className="dashboard-page-scroll w-full max-w-4xl space-y-8 pb-8 pt-6 px-8">
         <section>
           <div className="mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">mail</span>
