@@ -32,6 +32,12 @@ backend/venv/
 backend/serviceAccountKey.json
 backend/.env
 
+# Local OpenCode / agent state
+/.agents/
+/AGENTS.md
+/PROJECT_STATE.md
+/skills-lock.json
+
 # Editor / OS
 .vscode/
 !.vscode/extensions.json
