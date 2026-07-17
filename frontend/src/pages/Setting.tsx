@@ -671,7 +671,7 @@ export default function Settings() {
                 />
               </label>
               <label className="text-xs font-bold text-muted-foreground">
-                Minimum block
+                Minimum block (minutes)
                 <input
                   type="number"
                   min={15}
@@ -683,7 +683,7 @@ export default function Settings() {
                 />
               </label>
               <label className="text-xs font-bold text-muted-foreground">
-                Maximum block
+                Maximum block (minutes)
                 <input
                   type="number"
                   min={30}
