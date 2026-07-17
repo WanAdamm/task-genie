@@ -235,17 +235,32 @@ def update_draft(
     current_user=Depends(get_current_user),
 ):
     user_id = current_user["uid"]
-    ref, data = _plan_or_404(user_id, plan_id)
-    if payload.revision != data.get("revision"):
-        raise HTTPException(status_code=409, detail="The plan changed. Reload the latest draft.")
-    next_revision = payload.revision + 1
-    update = {
-        "draft": payload.draft.model_dump(),
-        "revision": next_revision,
-        "status": "draft",
-        "updatedAt": datetime.now(timezone.utc),
-    }
-    ref.update(update)
+    ref, _ = _plan_or_404(user_id, plan_id)
+    transaction = get_firestore_client().transaction()
+
+    @firestore.transactional
+    def commit_draft_update(current_transaction):
+        latest = ref.get(transaction=current_transaction).to_dict()
+        if latest.get("status") == "scheduled":
+            raise HTTPException(
+                status_code=409,
+                detail="Scheduled plans cannot be edited. Create a new plan to reschedule work.",
+            )
+        if payload.revision != latest.get("revision"):
+            raise HTTPException(
+                status_code=409,
+                detail="The plan changed. Reload the latest draft.",
+            )
+        update = {
+            "draft": payload.draft.model_dump(),
+            "revision": payload.revision + 1,
+            "status": "draft",
+            "updatedAt": datetime.now(timezone.utc),
+        }
+        current_transaction.update(ref, update)
+        return update
+
+    update = commit_draft_update(transaction)
     return {"planId": plan_id, **_serialize(update)}
 
 

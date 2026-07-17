@@ -3,15 +3,13 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { DatesSetArg, EventInput } from "@fullcalendar/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Stepper from "@/components/ui/stepper";
 import { useAuth } from "@/hooks/auth-context";
-import { apiFetch } from "@/lib/api";
 import {
-  CALENDAR_CACHE_UPDATED,
-  getCachedCalendarEvents,
-  setCachedCalendarEvents,
-  shouldReloadCalendarCache,
+  ensureCalendarFresh,
+  getCalendarSnapshot,
+  subscribeCalendarCache,
 } from "@/lib/calendar-cache";
 import type { ApiEvent } from "./types";
 import "./Calendar.css";
@@ -82,6 +80,7 @@ function mapApiEventsToCalendarEvents(events: ApiEvent[]): EventInput[] {
 export default function Calendar() {
   const { user } = useAuth();
   const [events, setEvents] = useState<ApiEvent[]>([]);
+  const [eventsUserId, setEventsUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aiStrictness, setAIStrictness] = useState(3);
@@ -90,58 +89,29 @@ export default function Calendar() {
   const [isPlanningPanelOpen, setIsPlanningPanelOpen] = useState(false);
   const calendarRef = useRef<FullCalendar | null>(null);
 
-  const loadEvents = useCallback(
-    async (forceReload = false) => {
-      if (!user) {
-        setEvents([]);
-        setLoading(false);
-        return;
-      }
-
-      const cached = getCachedCalendarEvents(user.uid);
-      const shouldReload = forceReload || shouldReloadCalendarCache(user.uid);
-      if (cached) setEvents(cached);
-
-      if (!shouldReload) {
-        setError(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(!cached);
-        setError(null);
-        const response = await apiFetch("/api/events");
-        if (!response.ok) throw new Error(`Failed to fetch events: ${response.status}`);
-
-        const data: ApiEvent[] = await response.json();
-        setCachedCalendarEvents(user.uid, data);
-        setEvents(data);
-      } catch (err) {
-        console.error("Error fetching events:", err);
-        if (!cached) setError("Failed to load calendar events.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [user],
-  );
-
-  useEffect(() => {
-    void loadEvents();
-  }, [loadEvents]);
-
   useEffect(() => {
     if (!user) return;
-    const handleCacheUpdate = (event: Event) => {
-      const detail = (event as CustomEvent<{ userId: string }>).detail;
-      if (detail?.userId !== user.uid) return;
-      const cached = getCachedCalendarEvents(user.uid);
-      if (cached) setEvents(cached);
+
+    const applySnapshot = (snapshot: ReturnType<typeof getCalendarSnapshot>) => {
+      if (snapshot.events) {
+        setEvents(snapshot.events);
+        setEventsUserId(user.uid);
+      }
+      setLoading(
+        snapshot.events === null && (snapshot.isRefreshing || !snapshot.error),
+      );
+      setError(
+        snapshot.events === null && snapshot.error
+          ? "Failed to load calendar events."
+          : null,
+      );
     };
 
-    window.addEventListener(CALENDAR_CACHE_UPDATED, handleCacheUpdate);
-    return () => window.removeEventListener(CALENDAR_CACHE_UPDATED, handleCacheUpdate);
+    const unsubscribe = subscribeCalendarCache(user.uid, applySnapshot);
+    void ensureCalendarFresh(user.uid).catch((refreshError) => {
+      console.error("Error fetching events:", refreshError);
+    });
+    return unsubscribe;
   }, [user]);
 
   useEffect(() => {
@@ -164,7 +134,9 @@ export default function Calendar() {
   const handleNext = () => calendarRef.current?.getApi().next();
   const handleToday = () => calendarRef.current?.getApi().today();
 
-  const calendarEvents = mapApiEventsToCalendarEvents(events);
+  const calendarEvents = mapApiEventsToCalendarEvents(
+    eventsUserId === user?.uid ? events : [],
+  );
 
   return (
     <div className="dashboard-page mx-auto max-w-7xl">

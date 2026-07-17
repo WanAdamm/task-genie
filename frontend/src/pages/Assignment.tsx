@@ -10,11 +10,7 @@ import type {
 import { weekdays, type AvailabilityConfig } from "@/features/settings/types";
 import { useAuth } from "@/hooks/auth-context";
 import { apiFetch } from "@/lib/api";
-import {
-  getCachedCalendarEvents,
-  markCalendarCacheDirty,
-  mergeCachedCalendarEvents,
-} from "@/lib/calendar-cache";
+import { runCalendarMutation } from "@/lib/calendar-api";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -275,23 +271,23 @@ export default function Assignment() {
   const confirmSchedule = () => {
     if (!plan) return;
     void run(async () => {
+      if (!user) throw new Error("You must be signed in to confirm a schedule.");
       const result = await responseJson<ConfirmResponse | ScheduleResponse>(
-        await apiFetch(`/api/assignment-plans/${plan.planId}/confirm`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ revision, policy }),
-        }),
+        await runCalendarMutation(
+          user.uid,
+          `/api/assignment-plans/${plan.planId}/confirm`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ revision, policy }),
+          },
+          (body) =>
+            (body as { status?: string } | null)?.status === "scheduled",
+        ),
       );
       if (result.status !== "scheduled") {
         setSchedule(result);
         return;
-      }
-      if (user && result.events.length) {
-        if (getCachedCalendarEvents(user.uid)) {
-          mergeCachedCalendarEvents(user.uid, result.events);
-        } else {
-          markCalendarCacheDirty(user.uid);
-        }
       }
       navigate("/dashboard/calendar");
     });
