@@ -24,7 +24,8 @@ The goal is simple: **reduce overwhelm and improve execution.**
 
 ### 📄 Assignment → Plan
 
-* Upload assignment briefs (text/PDF)
+* Upload assignment briefs as PDF, DOCX, or TXT, or paste the text directly
+* Review and edit server-extracted text before plan generation; original uploads are discarded
 * AI extracts deliverables, milestones, and requirements
 * Generates a structured execution roadmap
 
@@ -148,7 +149,7 @@ task-genie/
 
 ## 🎯 Roadmap
 
-* [ ] Assignment upload (text + PDF parsing)
+* [x] Assignment upload (PDF, DOCX, and TXT parsing; text-layer PDFs only)
 * [ ] AI roadmap generation
 * [ ] Calendar integration
 * [ ] Multi-assignment optimization

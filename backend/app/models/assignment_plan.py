@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 PlanPriority = Literal["low", "medium", "high"]
 SubtaskCategory = Literal["deep_work", "study", "admin"]
+MAX_ASSIGNMENT_REQUIREMENTS_CHARS = 50000
 
 
 class AssignmentPlanCreate(BaseModel):
@@ -14,7 +15,26 @@ class AssignmentPlanCreate(BaseModel):
     assignmentType: str = Field(..., min_length=1, max_length=80)
     priority: PlanPriority
     difficulty: int = Field(..., ge=1, le=3)
-    requirements: str = Field(default="", max_length=12000)
+    requirements: str = Field(
+        default="",
+        max_length=MAX_ASSIGNMENT_REQUIREMENTS_CHARS,
+    )
+
+
+class ExtractedDocumentSummary(BaseModel):
+    name: str
+    documentType: Literal["PDF", "DOCX", "TXT"]
+    sizeBytes: int
+    characterCount: int
+    pageCount: int | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DocumentExtractionResponse(BaseModel):
+    text: str
+    characterCount: int
+    files: list[ExtractedDocumentSummary]
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ClarificationQuestion(BaseModel):

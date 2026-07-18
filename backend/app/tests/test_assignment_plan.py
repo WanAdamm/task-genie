@@ -2,8 +2,10 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from models.assignment_plan import (
+    AssignmentPlanCreate,
     ClarificationQuestion,
     ClarificationResponse,
+    MAX_ASSIGNMENT_REQUIREMENTS_CHARS,
 )
 from pydantic import ValidationError
 from routes.assignment_plans import _plan_response
@@ -55,6 +57,29 @@ class AssignmentPlanTests(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             ClarificationResponse(questions=[question, question])
+
+    def test_allows_bounded_multi_document_requirements(self):
+        assignment = AssignmentPlanCreate(
+            courseName="Test Course",
+            dueDate=datetime.now(timezone.utc) + timedelta(days=1),
+            assignmentType="Essay",
+            priority="medium",
+            difficulty=2,
+            requirements="a" * MAX_ASSIGNMENT_REQUIREMENTS_CHARS,
+        )
+
+        self.assertEqual(len(assignment.requirements), MAX_ASSIGNMENT_REQUIREMENTS_CHARS)
+
+    def test_rejects_requirements_above_document_limit(self):
+        with self.assertRaises(ValidationError):
+            AssignmentPlanCreate(
+                courseName="Test Course",
+                dueDate=datetime.now(timezone.utc) + timedelta(days=1),
+                assignmentType="Essay",
+                priority="medium",
+                difficulty=2,
+                requirements="a" * (MAX_ASSIGNMENT_REQUIREMENTS_CHARS + 1),
+            )
 
 
 if __name__ == "__main__":

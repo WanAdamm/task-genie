@@ -4,9 +4,16 @@ from dotenv import load_dotenv
 from routes.events import router as events_router
 from routes.settings import router as settings_router
 from routes.assignment_plans import router as assignment_plans_router
+from services.document_extractor import MAX_TOTAL_BYTES
+from services.request_limits import RequestBodyLimitMiddleware
 
 load_dotenv()
 app = FastAPI(title="Student Scheduler API")
+app.add_middleware(
+    RequestBodyLimitMiddleware,
+    path="/assignment-plans/extract",
+    max_body_bytes=MAX_TOTAL_BYTES + 256 * 1024,
+)
 
 # ----------------------------------------
 # CORS CONFIG

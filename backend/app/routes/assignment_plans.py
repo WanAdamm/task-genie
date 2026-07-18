@@ -2,19 +2,32 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from firebase_admin import firestore
+from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from models.assignment_plan import (
     AssignmentPlanCreate,
     ClarificationAnswersUpdate,
+    DocumentExtractionResponse,
     DraftUpdate,
     GeneratedDraft,
+    MAX_ASSIGNMENT_REQUIREMENTS_CHARS,
     RevisionRequest,
     ScheduleRequest,
 )
 from models.setting import AvailabilityConfig
 from services.auth import get_current_user
+from services.document_extractor import (
+    MAX_FILES,
+    DocumentExtractionError,
+    UploadedDocument,
+    extract_documents,
+    read_upload,
+    safe_filename,
+)
 from services.firestore import (
     get_firestore_client,
     get_user_assignment_plans_collection,
@@ -25,6 +38,7 @@ from services.llm_planner import (
     generate_clarification_questions,
     generate_subtask_draft,
 )
+from services.request_limits import REQUEST_BODY_LIMIT_MESSAGE
 from services.scheduler import BusyInterval, ScheduleResult, build_schedule
 
 
@@ -178,6 +192,84 @@ def _run_schedule(user_id: str, data: dict, request: ScheduleRequest):
         policy=request.policy,
     )
     return result, _schedule_response(result)
+
+
+def _extract_uploaded_documents(
+    files: list[UploadFile],
+    max_characters: int,
+) -> DocumentExtractionResponse:
+    documents: list[UploadedDocument] = []
+    total_bytes = 0
+    for upload in files:
+        name = safe_filename(upload.filename)
+        data = read_upload(upload.file, name, total_bytes)
+        total_bytes += len(data)
+        documents.append(
+            UploadedDocument(
+                name=name,
+                content_type=upload.content_type,
+                data=data,
+            )
+        )
+    return extract_documents(documents, max_characters)
+
+
+@router.post("/extract", response_model=DocumentExtractionResponse)
+async def extract_assignment_documents(
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    del current_user
+    try:
+        async with request.form(
+            max_files=MAX_FILES,
+            max_fields=1,
+            max_part_size=1024,
+        ) as form:
+            file_values = form.getlist("files")
+            if not file_values:
+                raise HTTPException(status_code=400, detail="Select at least one document.")
+            if not all(isinstance(value, UploadFile) for value in file_values):
+                raise HTTPException(status_code=400, detail="The file upload is invalid.")
+
+            raw_max_characters = form.get(
+                "maxCharacters",
+                str(MAX_ASSIGNMENT_REQUIREMENTS_CHARS),
+            )
+            if not isinstance(raw_max_characters, str):
+                raise HTTPException(status_code=400, detail="The text limit is invalid.")
+            try:
+                max_characters = int(raw_max_characters)
+            except ValueError as error:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The text limit is invalid.",
+                ) from error
+            if not 1 <= max_characters <= MAX_ASSIGNMENT_REQUIREMENTS_CHARS:
+                raise HTTPException(status_code=400, detail="The text limit is invalid.")
+
+            return await run_in_threadpool(
+                _extract_uploaded_documents,
+                file_values,
+                max_characters,
+            )
+    except StarletteHTTPException as error:
+        if error.detail == REQUEST_BODY_LIMIT_MESSAGE:
+            raise HTTPException(
+                status_code=413,
+                detail="The selected files exceed the 15 MiB combined limit.",
+            ) from error
+        if isinstance(error.detail, str) and error.detail.startswith("Too many files"):
+            raise HTTPException(
+                status_code=400,
+                detail="Select no more than five documents.",
+            ) from error
+        raise
+    except DocumentExtractionError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail=error.detail,
+        ) from error
 
 
 @router.post("")
