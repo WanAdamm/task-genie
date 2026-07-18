@@ -48,7 +48,9 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const logOut = async () => {
     const userId = auth.currentUser?.uid;
     await signOut(auth);
-    if (userId) clearCalendarCache(userId);
+    if (userId) {
+      clearCalendarCache(userId);
+    }
   };
 
   return (

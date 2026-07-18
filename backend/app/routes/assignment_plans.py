@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -6,9 +7,10 @@ from firebase_admin import firestore
 
 from models.assignment_plan import (
     AssignmentPlanCreate,
-    ClarificationAnswersCreate,
+    ClarificationAnswersUpdate,
     DraftUpdate,
     GeneratedDraft,
+    RevisionRequest,
     ScheduleRequest,
 )
 from models.setting import AvailabilityConfig
@@ -27,6 +29,7 @@ from services.scheduler import BusyInterval, ScheduleResult, build_schedule
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _serialize(value):
@@ -45,6 +48,21 @@ def _plan_or_404(user_id: str, plan_id: str):
     if not snapshot.exists:
         raise HTTPException(status_code=404, detail="Assignment plan not found")
     return ref, snapshot.to_dict()
+
+
+def _plan_response(plan_id: str, data: dict):
+    response = {"planId": plan_id, **_serialize(data)}
+    if data.get("status") in {"awaiting_answers", "draft", "preview"}:
+        due_date = AssignmentPlanCreate.model_validate(data["assignment"]).dueDate
+        if due_date <= datetime.now(timezone.utc):
+            response["status"] = "expired"
+    return response
+
+
+def _ensure_plan_not_expired(data: dict):
+    due_date = AssignmentPlanCreate.model_validate(data["assignment"]).dueDate
+    if due_date <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=409, detail="This assignment deadline has passed.")
 
 
 def _availability_and_strategy(user_id: str):
@@ -138,15 +156,17 @@ def _schedule_response(result: ScheduleResult):
 def _run_schedule(user_id: str, data: dict, request: ScheduleRequest):
     if request.revision != data.get("revision"):
         raise HTTPException(status_code=409, detail="The plan changed. Reload the latest draft.")
+    if data.get("status") not in {"draft", "preview"} or "draft" not in data:
+        raise HTTPException(status_code=409, detail="The plan does not have a confirmed draft yet.")
+    assignment = AssignmentPlanCreate.model_validate(data["assignment"])
+    if assignment.dueDate <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=409, detail="This assignment deadline has passed.")
     availability, strategy, has_work_hours = _availability_and_strategy(user_id)
     if not has_work_hours:
         return None, {
             "status": "needs_availability",
             "message": "Set at least one work-hour window before scheduling.",
         }
-    if data.get("status") not in {"draft", "infeasible"} or "draft" not in data:
-        raise HTTPException(status_code=409, detail="The plan does not have a confirmed draft yet.")
-    assignment = AssignmentPlanCreate.model_validate(data["assignment"])
     draft = GeneratedDraft.model_validate(data["draft"])
     result = build_schedule(
         subtasks=draft.subtasks,
@@ -171,7 +191,14 @@ def create_assignment_plan(
     if payload.dueDate <= datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="dueDate must be in the future")
 
-    questions = generate_clarification_questions(payload)
+    try:
+        questions = generate_clarification_questions(payload)
+    except Exception as error:
+        logger.exception("Gemini clarification generation failed")
+        raise HTTPException(
+            status_code=502,
+            detail="Gemini could not analyze the assignment. Try again shortly.",
+        ) from error
     plan_ref = get_user_assignment_plans_collection(user_id).document()
     now = datetime.now(timezone.utc)
     plan_data = {
@@ -184,48 +211,147 @@ def create_assignment_plan(
         "updatedAt": now,
     }
     if not questions:
-        plan_data["draft"] = generate_subtask_draft(payload, []).model_dump()
+        try:
+            plan_data["draft"] = generate_subtask_draft(payload, []).model_dump()
+        except Exception as error:
+            logger.exception("Gemini draft generation failed")
+            raise HTTPException(
+                status_code=502,
+                detail="Gemini could not generate the assignment draft. Try again shortly.",
+            ) from error
     plan_ref.set(plan_data)
-    return {
-        "planId": plan_ref.id,
-        **_serialize(plan_data),
-    }
+    return _plan_response(plan_ref.id, plan_data)
 
 
-@router.post("/{plan_id}/answers")
-def answer_questions(
+@router.get("")
+def list_assignment_plans(current_user=Depends(get_current_user)):
+    user_id = current_user["uid"]
+    items = []
+    for snapshot in get_user_assignment_plans_collection(user_id).stream():
+        data = snapshot.to_dict()
+        if data.get("status") in {"scheduled", "cancelled"}:
+            continue
+        detail = _plan_response(snapshot.id, data)
+        assignment = detail.get("assignment", {})
+        items.append({
+            "planId": snapshot.id,
+            "status": detail.get("status"),
+            "revision": detail.get("revision"),
+            "courseName": assignment.get("courseName"),
+            "assignmentType": assignment.get("assignmentType"),
+            "dueDate": assignment.get("dueDate"),
+            "createdAt": detail.get("createdAt"),
+            "updatedAt": detail.get("updatedAt"),
+        })
+    items.sort(key=lambda item: item.get("updatedAt") or "", reverse=True)
+    return {"items": items}
+
+
+@router.get("/{plan_id}")
+def get_assignment_plan(
     plan_id: str,
-    payload: ClarificationAnswersCreate,
+    current_user=Depends(get_current_user),
+):
+    _, data = _plan_or_404(current_user["uid"], plan_id)
+    return _plan_response(plan_id, data)
+
+
+@router.put("/{plan_id}/answers")
+def checkpoint_answers(
+    plan_id: str,
+    payload: ClarificationAnswersUpdate,
+    current_user=Depends(get_current_user),
+):
+    user_id = current_user["uid"]
+    ref, data = _plan_or_404(user_id, plan_id)
+    transaction = get_firestore_client().transaction()
+
+    @firestore.transactional
+    def commit_answers(current_transaction):
+        latest = ref.get(transaction=current_transaction).to_dict()
+        if latest.get("status") != "awaiting_answers":
+            raise HTTPException(status_code=409, detail="This plan is not awaiting answers")
+        _ensure_plan_not_expired(latest)
+        if payload.revision != latest.get("revision"):
+            raise HTTPException(status_code=409, detail="The plan changed. Reload its latest answers.")
+        questions = {item["id"]: item for item in latest.get("questions", [])}
+        submitted_ids = [answer.questionId for answer in payload.answers]
+        if len(submitted_ids) != len(set(submitted_ids)):
+            raise HTTPException(status_code=400, detail="Answer IDs must be unique")
+        answers = []
+        for answer in payload.answers:
+            question = questions.get(answer.questionId)
+            if question is None:
+                raise HTTPException(status_code=400, detail=f"Unknown question: {answer.questionId}")
+            answers.append({
+                **answer.model_dump(),
+                "question": question["question"],
+            })
+        update = {
+            "answers": answers,
+            "revision": payload.revision + 1,
+            "updatedAt": datetime.now(timezone.utc),
+        }
+        current_transaction.update(ref, update)
+        return update
+
+    update = commit_answers(transaction)
+    return _plan_response(plan_id, {**data, **update})
+
+
+@router.post("/{plan_id}/generate-draft")
+def generate_plan_draft(
+    plan_id: str,
+    payload: RevisionRequest,
     current_user=Depends(get_current_user),
 ):
     user_id = current_user["uid"]
     ref, data = _plan_or_404(user_id, plan_id)
     if data.get("status") != "awaiting_answers":
         raise HTTPException(status_code=409, detail="This plan is not awaiting answers")
+    _ensure_plan_not_expired(data)
+    if payload.revision != data.get("revision"):
+        raise HTTPException(status_code=409, detail="The plan changed. Reload its latest answers.")
 
-    questions = {item["id"]: item for item in data.get("questions", [])}
-    submitted_ids = [answer.questionId for answer in payload.answers]
-    if len(submitted_ids) != len(set(submitted_ids)) or set(submitted_ids) != set(questions):
-        raise HTTPException(status_code=400, detail="Answer each clarification question exactly once")
-    answers = []
-    for answer in payload.answers:
-        question = questions.get(answer.questionId)
-        if question is None:
-            raise HTTPException(status_code=400, detail=f"Unknown question: {answer.questionId}")
-        answers.append({
-            **answer.model_dump(),
-            "question": question["question"],
-        })
-    assignment = AssignmentPlanCreate.model_validate(data["assignment"])
-    draft = generate_subtask_draft(assignment, answers)
-    update = {
-        "answers": answers,
-        "draft": draft.model_dump(),
-        "status": "draft",
-        "updatedAt": datetime.now(timezone.utc),
+    questions = {item["id"] for item in data.get("questions", [])}
+    saved_answers = data.get("answers", [])
+    answered_ids = {
+        item.get("questionId")
+        for item in saved_answers
+        if isinstance(item.get("answer"), str) and item["answer"].strip()
     }
-    ref.update(update)
-    return {"planId": plan_id, "revision": data["revision"], **_serialize(update)}
+    if answered_ids != questions:
+        raise HTTPException(status_code=400, detail="Answer each clarification question first")
+
+    assignment = AssignmentPlanCreate.model_validate(data["assignment"])
+    try:
+        draft = generate_subtask_draft(assignment, saved_answers)
+    except Exception as error:
+        logger.exception("Gemini draft generation failed for plan %s", plan_id)
+        raise HTTPException(
+            status_code=502,
+            detail="Gemini could not generate the assignment draft. Retry shortly.",
+        ) from error
+
+    transaction = get_firestore_client().transaction()
+
+    @firestore.transactional
+    def commit_generated_draft(current_transaction):
+        latest = ref.get(transaction=current_transaction).to_dict()
+        if latest.get("status") != "awaiting_answers" or latest.get("revision") != payload.revision:
+            raise HTTPException(status_code=409, detail="The plan changed during generation. Reload it.")
+        _ensure_plan_not_expired(latest)
+        update = {
+            "draft": draft.model_dump(),
+            "status": "draft",
+            "revision": payload.revision + 1,
+            "updatedAt": datetime.now(timezone.utc),
+        }
+        current_transaction.update(ref, update)
+        return update
+
+    update = commit_generated_draft(transaction)
+    return _plan_response(plan_id, {**data, **update})
 
 
 @router.put("/{plan_id}/draft")
@@ -241,11 +367,12 @@ def update_draft(
     @firestore.transactional
     def commit_draft_update(current_transaction):
         latest = ref.get(transaction=current_transaction).to_dict()
-        if latest.get("status") == "scheduled":
+        if latest.get("status") not in {"draft", "preview"}:
             raise HTTPException(
                 status_code=409,
-                detail="Scheduled plans cannot be edited. Create a new plan to reschedule work.",
+                detail="Only draft plans can be edited.",
             )
+        _ensure_plan_not_expired(latest)
         if payload.revision != latest.get("revision"):
             raise HTTPException(
                 status_code=409,
@@ -271,9 +398,64 @@ def preview_schedule(
     current_user=Depends(get_current_user),
 ):
     user_id = current_user["uid"]
-    _, data = _plan_or_404(user_id, plan_id)
+    ref, data = _plan_or_404(user_id, plan_id)
     _, response = _run_schedule(user_id, data, payload)
-    return response
+    transaction = get_firestore_client().transaction()
+
+    @firestore.transactional
+    def commit_preview_state(current_transaction):
+        latest = ref.get(transaction=current_transaction).to_dict()
+        if latest.get("revision") != payload.revision:
+            raise HTTPException(status_code=409, detail="The plan changed during preview. Reload it.")
+        if latest.get("status") not in {"draft", "preview"}:
+            raise HTTPException(status_code=409, detail="This plan can no longer be previewed.")
+        _ensure_plan_not_expired(latest)
+        policy = payload.policy.model_dump()
+        policy_changed = latest.get("status") != "preview" or latest.get("policy") != policy
+        next_revision = payload.revision + 1 if policy_changed else payload.revision
+        current_transaction.update(ref, {
+            "status": "preview",
+            "policy": policy,
+            "revision": next_revision,
+            "updatedAt": datetime.now(timezone.utc),
+        })
+        return next_revision
+
+    next_revision = commit_preview_state(transaction)
+    return {**response, "revision": next_revision}
+
+
+@router.post("/{plan_id}/cancel")
+def cancel_assignment_plan(
+    plan_id: str,
+    payload: RevisionRequest,
+    current_user=Depends(get_current_user),
+):
+    user_id = current_user["uid"]
+    ref, _ = _plan_or_404(user_id, plan_id)
+    transaction = get_firestore_client().transaction()
+
+    @firestore.transactional
+    def commit_cancellation(current_transaction):
+        latest = ref.get(transaction=current_transaction).to_dict()
+        if latest.get("status") == "cancelled":
+            return latest
+        if latest.get("status") == "scheduled":
+            raise HTTPException(status_code=409, detail="Scheduled plans cannot be discarded.")
+        if latest.get("revision") != payload.revision:
+            raise HTTPException(status_code=409, detail="The plan changed. Reload before discarding it.")
+        now = datetime.now(timezone.utc)
+        update = {
+            "status": "cancelled",
+            "revision": payload.revision + 1,
+            "cancelledAt": now,
+            "updatedAt": now,
+        }
+        current_transaction.update(ref, update)
+        return {**latest, **update}
+
+    cancelled = commit_cancellation(transaction)
+    return _plan_response(plan_id, cancelled)
 
 
 @router.post("/{plan_id}/confirm")

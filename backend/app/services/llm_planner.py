@@ -1,5 +1,7 @@
 import os
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel
 
 try:
     from google import genai
@@ -19,9 +21,33 @@ from models.assignment_plan import (
 )
 
 
+class LLMGeneratedSubtask(BaseModel):
+    """Minimal schema sent to Gemini; domain constraints are applied afterward."""
+
+    id: str
+    title: str
+    description: str
+    estimatedMinutes: int
+    category: Literal["deep_work", "study", "admin"]
+    priority: Literal["low", "medium", "high"]
+    dependencies: list[str]
+    splittable: bool
+    minimumBlockMinutes: int
+
+
+class LLMGeneratedDraft(BaseModel):
+    summary: str
+    assumptions: list[str]
+    subtasks: list[LLMGeneratedSubtask]
+
+
 def _client() -> Any | None:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     return genai.Client(api_key=api_key) if api_key and genai is not None else None
+
+
+def _model_name() -> str:
+    return os.getenv("GEMINI_MODEL", "gemini-flash-latest").strip()
 
 
 def _assignment_context(assignment: AssignmentPlanCreate) -> str:
@@ -70,7 +96,7 @@ of the application owns scheduling. Return at most three concise questions.
 {_assignment_context(assignment)}
 """
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=_model_name(),
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -164,11 +190,11 @@ Clarification answers:
 {answers_text}
 """
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=_model_name(),
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=GeneratedDraft,
+            response_schema=LLMGeneratedDraft,
             system_instruction=(
                 "You are an academic work-breakdown specialist. You estimate and "
                 "sequence work, but never generate calendar timestamps."
@@ -176,6 +202,6 @@ Clarification answers:
         ),
     )
     parsed = response.parsed
-    if not isinstance(parsed, GeneratedDraft):
+    if not isinstance(parsed, LLMGeneratedDraft):
         raise ValueError("Gemini did not return a valid subtask draft")
-    return parsed
+    return GeneratedDraft.model_validate(parsed.model_dump())

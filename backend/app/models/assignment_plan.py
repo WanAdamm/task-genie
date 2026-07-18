@@ -26,6 +26,13 @@ class ClarificationQuestion(BaseModel):
 class ClarificationResponse(BaseModel):
     questions: list[ClarificationQuestion] = Field(default_factory=list, max_length=3)
 
+    @model_validator(mode="after")
+    def validate_unique_question_ids(self):
+        question_ids = [question.id for question in self.questions]
+        if len(question_ids) != len(set(question_ids)):
+            raise ValueError("clarification question IDs must be unique")
+        return self
+
 
 class ClarificationAnswer(BaseModel):
     questionId: str = Field(..., min_length=1, max_length=60)
@@ -34,6 +41,20 @@ class ClarificationAnswer(BaseModel):
 
 class ClarificationAnswersCreate(BaseModel):
     answers: list[ClarificationAnswer] = Field(..., min_length=1, max_length=3)
+
+
+class ClarificationAnswerCheckpoint(BaseModel):
+    questionId: str = Field(..., min_length=1, max_length=60)
+    answer: str = Field(default="", max_length=4000)
+
+
+class ClarificationAnswersUpdate(BaseModel):
+    revision: int = Field(..., ge=1)
+    answers: list[ClarificationAnswerCheckpoint] = Field(default_factory=list, max_length=3)
+
+
+class RevisionRequest(BaseModel):
+    revision: int = Field(..., ge=1)
 
 
 class GeneratedSubtask(BaseModel):

@@ -2,6 +2,22 @@ import type { ApiEvent } from "@/pages/Calendar/types";
 
 export type PlanPriority = "low" | "medium" | "high";
 export type SubtaskCategory = "deep_work" | "study" | "admin";
+export type PlanStatus =
+  | "awaiting_answers"
+  | "draft"
+  | "preview"
+  | "scheduled"
+  | "cancelled"
+  | "expired";
+
+export type AssignmentInput = {
+  courseName: string;
+  dueDate: string;
+  assignmentType: string;
+  priority: PlanPriority;
+  difficulty: number;
+  requirements: string;
+};
 
 export type ClarificationQuestion = {
   id: string;
@@ -27,12 +43,34 @@ export type GeneratedDraft = {
   subtasks: GeneratedSubtask[];
 };
 
+export type StoredClarificationAnswer = {
+  questionId: string;
+  question: string;
+  answer: string;
+};
+
 export type PlanResponse = {
   planId: string;
-  status: "awaiting_answers" | "draft";
+  status: PlanStatus;
   revision: number;
+  assignment: AssignmentInput;
   questions?: ClarificationQuestion[];
+  answers?: StoredClarificationAnswer[];
   draft?: GeneratedDraft;
+  policy?: SchedulePolicy;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AssignmentPlanSummary = {
+  planId: string;
+  status: PlanStatus;
+  revision: number;
+  courseName: string;
+  assignmentType: string;
+  dueDate: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type SchedulePolicy = {
@@ -59,6 +97,7 @@ export type ScheduleResponse = {
   unscheduledMinutes?: number;
   proposedEvents?: ProposedEvent[];
   options?: Array<{ id: string; label: string; description: string }>;
+  revision?: number;
 };
 
 export type ConfirmResponse = {
