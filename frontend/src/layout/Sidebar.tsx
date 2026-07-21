@@ -49,7 +49,7 @@ export default function Sidebar() {
             <h1 className="font-heading font-extrabold text-foreground text-xl tracking-tight leading-none">
               TaskGenie
             </h1>
-            <p className="schedule-label text-[9px] font-bold text-muted-foreground uppercase mt-1">
+            <p className="schedule-label mt-1 text-xs font-bold uppercase text-muted-foreground">
               Study desk
             </p>
           </div>

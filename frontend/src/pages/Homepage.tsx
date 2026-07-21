@@ -11,7 +11,7 @@ export default function LandingPage() {
     <main className="overflow-hidden">
       <section className="mx-auto grid max-w-7xl items-stretch gap-8 px-6 py-12 md:px-10 lg:grid-cols-[1.05fr_.95fr] lg:py-20">
         <div className="desk-enter flex flex-col justify-center py-6 lg:py-12">
-          <p className="schedule-label mb-7 text-[11px] font-bold uppercase text-muted-foreground">
+          <p className="schedule-label mb-7 text-xs font-bold uppercase text-muted-foreground">
             A study planner for real semesters
           </p>
           <h1 className="max-w-3xl font-heading text-5xl font-extrabold leading-[0.96] text-foreground md:text-7xl">
@@ -35,28 +35,28 @@ export default function LandingPage() {
           <div className="relative ml-6">
             <div className="flex items-center justify-between border-b border-border pb-5">
               <div>
-                <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">Thursday / study map</p>
+                <p className="schedule-label text-xs font-bold uppercase text-muted-foreground">Thursday / study map</p>
                 <p className="mt-1 font-heading text-xl font-extrabold">Environmental ethics paper</p>
               </div>
-              <span className="rounded-full bg-destructive px-3 py-1.5 schedule-label text-[10px] font-bold text-destructive-foreground">DUE FRI</span>
+              <span className="schedule-label rounded-full bg-destructive px-3 py-1.5 text-xs font-bold text-destructive-foreground">DUE FRI</span>
             </div>
             <div className="mt-7 space-y-4">
               <div className="grid grid-cols-[58px_1fr] gap-4">
-                <span className="schedule-label pt-3 text-[10px] text-muted-foreground">16:00</span>
+                <span className="schedule-label pt-3 text-xs text-muted-foreground">16:00</span>
                 <div className="rounded-lg border-l-4 border-primary bg-primary/10 p-3">
                   <p className="text-sm font-bold">Outline the argument</p>
                   <p className="mt-1 text-xs text-muted-foreground">45 min · deep work</p>
                 </div>
               </div>
               <div className="grid grid-cols-[58px_1fr] gap-4">
-                <span className="schedule-label pt-3 text-[10px] text-muted-foreground">17:00</span>
+                <span className="schedule-label pt-3 text-xs text-muted-foreground">17:00</span>
                 <div className="rounded-lg border-l-4 border-event-class-foreground bg-event-class p-3 text-event-class-foreground">
                   <p className="text-sm font-bold">Read two counterarguments</p>
                   <p className="mt-1 text-xs text-muted-foreground">30 min · research</p>
                 </div>
               </div>
               <div className="grid grid-cols-[58px_1fr] gap-4">
-                <span className="schedule-label pt-3 text-[10px] text-muted-foreground">19:30</span>
+                <span className="schedule-label pt-3 text-xs text-muted-foreground">19:30</span>
                 <div className="rounded-lg border-l-4 border-destructive bg-destructive/10 p-3">
                   <p className="text-sm font-bold">Draft opening paragraph</p>
                   <p className="mt-1 text-xs text-muted-foreground">30 min · writing</p>
@@ -71,7 +71,7 @@ export default function LandingPage() {
       <section className="border-y border-border bg-paper/55">
         <div className="mx-auto max-w-7xl px-6 py-16 md:px-10">
           <div className="max-w-2xl">
-            <p className="schedule-label text-[11px] font-bold uppercase text-primary">The planning loop</p>
+            <p className="schedule-label text-xs font-bold uppercase text-primary">The planning loop</p>
             <h2 className="mt-3 font-heading text-4xl font-extrabold">From brief to next move.</h2>
           </div>
           <div className="mt-10 grid gap-0 md:grid-cols-3 md:divide-x md:divide-border">

@@ -93,7 +93,7 @@
   padding: 0.75rem 0.35rem;
   color: var(--muted-foreground);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -103,7 +103,7 @@
   padding: 0.5rem 0.6rem;
   color: var(--muted-foreground);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -137,10 +137,24 @@
   background: var(--fc-more-link-bg-color);
 }
 
+.fc .fc-daygrid-day-number:focus-visible,
 .fc .fc-daygrid-more-link:focus-visible,
 .fc .fc-popover-close:focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: 2px;
+}
+
+/* Month cells advertise the day-to-timeline drill-down without changing other views. */
+.fc .fc-dayGridMonth-view .fc-daygrid-day:not(.fc-day-disabled) {
+  cursor: pointer;
+}
+
+.fc .fc-dayGridMonth-view .fc-daygrid-day-frame {
+  transition: background-color 150ms ease;
+}
+
+.fc .fc-dayGridMonth-view .fc-daygrid-day:not(.fc-day-disabled):hover .fc-daygrid-day-frame {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .fc .fc-popover {
@@ -202,7 +216,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  font-size: 0.69rem;
+  font-size: 0.75rem;
   font-weight: 650;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -211,15 +225,15 @@
 
 .calendar-conflict-mark {
   display: inline-flex;
-  width: 0.9rem;
-  height: 0.9rem;
+  width: 1rem;
+  height: 1rem;
   flex: none;
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
   background: var(--destructive);
   color: var(--destructive-foreground);
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -249,9 +263,8 @@
 }
 
 .fc .fc-event-priority-high {
-  --calendar-event-background: var(--primary);
-  --calendar-event-foreground: var(--primary-foreground);
-  --calendar-event-accent: var(--primary-foreground);
+  /* Priority uses a heavier rail without replacing the event's category color. */
+  border-left-width: 5px;
 }
 
 .fc-conflict-bg {
@@ -270,7 +283,7 @@
 .fc .fc-timegrid-slot-label-cushion {
   color: var(--muted-foreground);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
 }
 
 .calendar-inverse-panel .slider-stepper:focus-visible {
@@ -295,10 +308,6 @@
 @media (max-width: 640px) {
   .fc .fc-daygrid-day-frame {
     min-height: 4.25rem;
-  }
-
-  .fc .fc-col-header-cell-cushion {
-    font-size: 0.55rem;
   }
 
   .fc .fc-daygrid-day-number {

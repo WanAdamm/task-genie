@@ -4,7 +4,7 @@ export default function Insights() {
       {/* Header */}
       <header className="dashboard-page-header flex w-full flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div>
-          <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">Planning review</p>
+          <p className="schedule-label text-xs font-bold uppercase text-muted-foreground">Planning review</p>
           <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight md:text-4xl">Academic roadmap</h1>
         </div>
 

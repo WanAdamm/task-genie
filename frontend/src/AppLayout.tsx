@@ -155,7 +155,7 @@ export default function AppLayout() {
           >
             <div className="flex items-center justify-between border-b border-border pb-4">
               <div>
-                <p className="schedule-label text-[9px] font-bold uppercase text-muted-foreground">Study desk</p>
+                <p className="schedule-label text-xs font-bold uppercase text-muted-foreground">Study desk</p>
                 <h2 id="mobile-dashboard-navigation-title" className="mt-1 font-heading text-xl font-extrabold">Navigate</h2>
               </div>
               <button

@@ -13,6 +13,7 @@
 
 @theme inline {
   /* Typography */
+  /* Visible UI text uses text-xs (0.75rem) as its minimum authored size. */
   --font-sans: "Geist Variable", "Inter", sans-serif;
   --font-heading: "Manrope", "Geist Variable", sans-serif;
 
@@ -156,14 +157,15 @@
   --disabled: #dfe5ed;
   --disabled-foreground: #68768a;
 
-  --event-study: #e2e8ff;
-  --event-study-foreground: #2948bd;
-  --event-class: #e4e9f0;
-  --event-class-foreground: #52627a;
-  --event-deadline: #f9e3df;
-  --event-deadline-foreground: #a03b31;
-  --event-muted: #e8edf3;
-  --event-muted-foreground: #5e6c80;
+  /* Distinct hue families keep calendar categories readable at a glance. */
+  --event-study: #e4e9ff;
+  --event-study-foreground: #3047b7;
+  --event-class: #dff4ec;
+  --event-class-foreground: #176b57;
+  --event-deadline: #fbe3de;
+  --event-deadline-foreground: #a43a2f;
+  --event-muted: #f4ead5;
+  --event-muted-foreground: #755719;
 
   --border: #cbd5e1;
   --input: var(--field);
@@ -236,14 +238,15 @@
   --disabled: #2a313b;
   --disabled-foreground: #8994a3;
 
-  --event-study: #263556;
-  --event-study-foreground: #cbd6ff;
-  --event-class: #2b323d;
-  --event-class-foreground: #d2dae5;
-  --event-deadline: #482b2d;
-  --event-deadline-foreground: #ffd0ca;
-  --event-muted: #252b33;
-  --event-muted-foreground: #b6c0ce;
+  /* Dark-mode fills retain the same blue, teal, red, and amber identities. */
+  --event-study: #27365f;
+  --event-study-foreground: #d1d9ff;
+  --event-class: #183d37;
+  --event-class-foreground: #a5e5d3;
+  --event-deadline: #4e2b2c;
+  --event-deadline-foreground: #ffc9bf;
+  --event-muted: #40351f;
+  --event-muted-foreground: #f1d394;
 
   --border: #303946;
   --input: var(--field);

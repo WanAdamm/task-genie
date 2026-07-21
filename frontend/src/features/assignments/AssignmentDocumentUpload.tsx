@@ -320,7 +320,7 @@ export default function AssignmentDocumentUpload({
                   description
                 </span>
                 <span className="min-w-0 flex-1 truncate text-xs font-bold">{file.name}</span>
-                <span className="shrink-0 text-[10px] font-bold uppercase text-muted-foreground">
+                <span className="shrink-0 text-xs font-bold uppercase text-muted-foreground">
                   {formatBytes(file.size)}
                 </span>
                 <button

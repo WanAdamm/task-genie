@@ -412,7 +412,7 @@ export default function Settings() {
   return (
     <div className="dashboard-page mx-auto w-full max-w-6xl text-foreground">
       <header className="dashboard-page-header w-full max-w-4xl border-b border-border pb-4">
-        <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">Preferences</p>
+        <p className="schedule-label text-xs font-bold uppercase text-muted-foreground">Preferences</p>
         <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">
           Settings & Reminders
         </h1>
@@ -523,7 +523,7 @@ export default function Settings() {
                   label="Primary reminder lead time"
                 />
 
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-tighter text-muted-foreground">
+                <div className="flex justify-between gap-3 text-xs font-bold uppercase tracking-tighter text-muted-foreground">
                   <span>1 Day</span>
                   <span>7 Days</span>
                   <span>14 Days</span>
@@ -548,7 +548,7 @@ export default function Settings() {
                   label="Secondary reminder lead time"
                 />
 
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-tighter text-muted-foreground">
+                <div className="flex justify-between gap-3 text-xs font-bold uppercase tracking-tighter text-muted-foreground">
                   <span>{primaryAlert + 1} Days</span>
                   <span>15 Days</span>
                   <span>30 Days</span>
@@ -908,11 +908,11 @@ export default function Settings() {
 
                   <Stepper value={level} onChange={setLevel} label="Planner confidence" />
 
-                  <div className="mt-2 flex justify-between">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                  <div className="mt-2 flex justify-between gap-4">
+                    <span className="text-xs font-bold uppercase text-muted-foreground">
                       Strict Logic
                     </span>
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                    <span className="text-right text-xs font-bold uppercase text-muted-foreground">
                       Creative Insights
                     </span>
                   </div>

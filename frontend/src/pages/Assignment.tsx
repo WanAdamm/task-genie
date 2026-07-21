@@ -721,7 +721,7 @@ export default function Assignment() {
   return (
     <div className="dashboard-page mx-auto w-full max-w-6xl text-foreground">
       <header className="dashboard-page-header border-b border-border pb-5">
-        <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">
+        <p className="schedule-label text-xs font-bold uppercase text-muted-foreground">
           Assignment planner
         </p>
         <div className="mt-1 flex flex-col justify-between gap-3 md:flex-row md:items-end">
@@ -760,7 +760,7 @@ export default function Assignment() {
               return (
                 <li
                   key={label}
-                  className={`border-r border-border px-2 py-3 text-center text-[10px] font-bold uppercase tracking-wider last:border-r-0 ${index <= activeIndex ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                  className={`border-r border-border px-1 py-3 text-center text-xs font-bold uppercase leading-4 tracking-normal last:border-r-0 sm:px-2 sm:tracking-wider ${index <= activeIndex ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
                 >
                   <span className="mr-1 hidden sm:inline">0{index + 1}</span>
                   {label}
@@ -824,7 +824,7 @@ export default function Assignment() {
                 placeholder="Paste or review the assignment brief, rubric, required sections, source requirements, or current progress..."
                 className="mt-2 w-full resize-none rounded-xl border border-control-border bg-field p-4 text-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-wait disabled:opacity-60"
               />
-              <p className="mt-2 text-right text-[10px] font-bold uppercase text-muted-foreground">
+              <p className="mt-2 text-right text-xs font-bold uppercase text-muted-foreground">
                 {requirements.trim()
                   ? requirements.trim().split(/\s+/).length
                   : 0}{" "}
@@ -984,7 +984,7 @@ export default function Assignment() {
               ))}
             </div>
             <div
-              className="mt-4 text-right text-[10px] font-bold uppercase text-muted-foreground"
+              className="mt-4 text-right text-xs font-bold uppercase text-muted-foreground"
               aria-live="polite"
             >
               {saveState === "saving"
@@ -1080,11 +1080,11 @@ export default function Assignment() {
                             className="ml-2 w-20 rounded-lg border border-control-border bg-field px-2 py-1.5 text-foreground disabled:opacity-60"
                           />
                         </label>
-                        <span className="rounded-full bg-surface-container-high px-3 py-1 text-[10px] font-bold uppercase">
+                        <span className="rounded-full bg-surface-container-high px-3 py-1 text-xs font-bold uppercase">
                           {task.category.replace("_", " ")}
                         </span>
                         {task.dependencies.length > 0 && (
-                          <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                          <span className="text-xs font-bold uppercase text-muted-foreground">
                             After {task.dependencies.join(", ")}
                           </span>
                         )}
@@ -1110,7 +1110,7 @@ export default function Assignment() {
                 </span>
               </p>
               <p
-                className="mt-3 text-[10px] font-bold uppercase text-muted-foreground"
+                className="mt-3 text-xs font-bold uppercase text-muted-foreground"
                 aria-live="polite"
               >
                 {saveState === "saving"
