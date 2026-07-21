@@ -7,9 +7,15 @@ const assignments = [
   { course: "ENV-204", title: "Ethics position paper", due: "Fri, 2 days", progress: 68, color: "bg-event-study-foreground" },
   { course: "CS-101", title: "Research proposal", due: "Next Tue", progress: 22, color: "bg-event-class-foreground" },
   { course: "HIS-318", title: "Primary source notes", due: "Next Thu", progress: 90, color: "bg-event-deadline-foreground" },
-];
+]; 
 
 export default function Overview() {
+  const currentDate = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric"
+  }).format(new Date());
+
   const [tasks, setTasks] = useState<Task[]>([
     { text: "Outline the ethics argument", detail: "ENV-204 · 45 min", done: true },
     { text: "Annotate two journal articles", detail: "CS-101 · 30 min" },
@@ -20,7 +26,7 @@ export default function Overview() {
   return (
     <div className="dashboard-page mx-auto max-w-7xl">
       <header className="dashboard-page-header desk-enter border-b border-border pb-4">
-        <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">Thursday, October 24</p>
+        <p className="schedule-label text-[10px] font-bold uppercase text-muted-foreground">{currentDate}</p>
         <div className="mt-2 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <h1 className="font-heading text-3xl font-extrabold tracking-tight md:text-4xl">Your study desk</h1>

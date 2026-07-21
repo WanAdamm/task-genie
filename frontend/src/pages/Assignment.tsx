@@ -492,7 +492,7 @@ export default function Assignment() {
     if (answerTimerRef.current) clearTimeout(answerTimerRef.current);
     answerTimerRef.current = setTimeout(() => {
       void flushAnswers().catch(() => undefined);
-    }, 700);
+    }, 1500);
   };
 
   const createPlan = (event: React.FormEvent) => {
